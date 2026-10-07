@@ -1,6 +1,6 @@
 # PSUM Check Interrogation WinUI 3
 
-This is an unpackaged WinUI 3 port of the original Python PSUM Check Interrogation in `New Projects`. The current window reads charge percentage, AC state, battery state, and Windows' remaining-time estimate through `GetSystemPowerStatus`. It refreshes those values at a selectable 10–300 second interval. On launch and manual refresh it also queries Windows battery WMI for design capacity, full-charge capacity, cycle count, voltage, temperature, power flow, and remaining capacity. Capacity health and wear follow the original PSUM thresholds, including a replacement alert below 30%. Unsupported firmware values remain `Unknown`.
+This is an unpackaged WinUI 3 port of the original Python PSUM Check Interrogation in `New Projects`. The current window reads charge percentage, AC state, battery state, and Windows' remaining-time estimate through `GetSystemPowerStatus`. It refreshes those values at a selectable 10–300 second interval. On launch and manual refresh, it also queries Windows battery WMI for design capacity, full-charge capacity, cycle count, voltage, temperature, power flow, and remaining capacity. Capacity health and wear follow the original PSUM thresholds, including a replacement alert below 30%. Unsupported firmware values remain `Unknown`.
 
 Manual check-ins save the current charge, state, health, cycle count, an optional note, a hashed battery identity, and a stable Evidence ID. The history view reads up to the latest 1,000,000 check-ins and can filter by battery, state, and local date range. Select a record to export its evidence as UTF-8 `.txt`, or export the currently shown records as UTF-8 `.csv`. CSV text fields that look like spreadsheet formulas are prefixed with an apostrophe. The WinUI edition reads and writes the same `%LOCALAPPDATA%\PSUM\psum.sqlite3` check-in table as the original Python app. It uses Windows' built-in SQLite library and adds missing Evidence IDs for legacy check-ins on first open.
 
@@ -52,4 +52,7 @@ To build setup locally, install the .NET 10 SDK and Inno Setup 6.3 or newer, the
 ./scripts/Build-Installer.ps1 -Version 1.0.0
 ```
 
-Output is written to `artifacts\installer`. The script verifies required WinUI resources and runtime files before compiling setup. GitHub's `windows-2022` runner includes Inno Setup.
+Output is written to `artifacts\installer`. The script verifies required WinUI resources and runtime files before compiling the setup. GitHub's `windows-2022` runner includes Inno Setup.
+
+## Disclosure note:
+This utility tool was built with Codex assistance, and you may review the code before installing or modifying it.
