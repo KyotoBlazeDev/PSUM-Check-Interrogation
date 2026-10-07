@@ -16,6 +16,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
   schedule:
     - cron: '45 13 * * 0'
 
@@ -27,7 +28,8 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     permissions:
       # required for all workflows
       security-events: write
@@ -45,8 +47,10 @@ jobs:
         include:
         - language: actions
           build-mode: none
+          os: ubuntu-latest
         - language: csharp
-          build-mode: autobuild
+          build-mode: manual
+          os: windows-2022
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
@@ -58,6 +62,12 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
+
+    - name: Set up .NET for WinUI 3
+      if: matrix.language == 'csharp'
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: 10.0.x
 
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
@@ -84,16 +94,12 @@ jobs:
     # to build your code.
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-    - name: Run manual build steps
+    - name: Build WinUI 3 for C# extraction
       if: matrix.build-mode == 'manual'
-      shell: bash
+      shell: pwsh
       run: |
-        echo 'If you are using a "manual" build mode for one or more of the' \
-          'languages you are analyzing, replace this with the commands to build' \
-          'your code, for example:'
-        echo '  make bootstrap'
-        echo '  make release'
-        exit 1
+        dotnet build 'PSUM Check Interrogation WinUI 3.csproj' -c Release -p:Platform=x64 -r win-x64 --no-incremental -p:UseSharedCompilation=false
+        if ($LASTEXITCODE -ne 0) { throw "WinUI build failed with exit code $LASTEXITCODE" }
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
