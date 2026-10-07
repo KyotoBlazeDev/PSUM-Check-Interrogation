@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (X.Y.Z)
+        required: true
+        default: '1.0.0'
+        type: string
+      prerelease:
+        description: Mark this as a prerelease
+        required: true
+        default: false
+        type: boolean
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.version || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  installer:
+    name: Build and attach x64 setup
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Resolve release metadata
+        id: release
+        run: |
+          $event = Get-Content -LiteralPath $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $version = $event.inputs.version
+            $tag = "v$version"
+            $prerelease = "$($event.inputs.prerelease)".ToLowerInvariant()
+          } else {
+            $tag = $event.release.tag_name
+            if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw 'Release tag must be vX.Y.Z.' }
+            $version = $tag.Substring(1)
+            $prerelease = "$($event.release.prerelease)".ToLowerInvariant()
+          }
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$' -or
+              @($version.Split('.') | Where-Object { [long]$_ -gt 65534 }).Count) {
+            throw 'Version must be X.Y.Z, with each component between 0 and 65534.'
+          }
+          $commit = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the checked-out commit.' }
+          $existingTags = @(git tag --list $tag)
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect existing tags.' }
+          if ($existingTags -contains $tag) {
+            $tagCommit = git rev-parse "refs/tags/$tag^{commit}"
+            if ($LASTEXITCODE -ne 0) { throw "Cannot resolve tag $tag." }
+            if ($tagCommit -ne $commit) {
+              throw "Tag $tag refers to another commit. Run the workflow from that tag or choose a new version."
+            }
+          }
+          "version=$version", "tag=$tag", "prerelease=$prerelease", "commit=$commit" |
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT
+      - name: Publish and compile installer
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: ./scripts/Build-Installer.ps1 -Version $env:RELEASE_VERSION
+      - name: Verify silent install and uninstall
+        run: ./scripts/Test-Installer.ps1
+      - name: Upload setup and checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: PSUM-Setup-${{ steps.release.outputs.version }}-x64
+          path: artifacts/installer/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: Create draft release (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ steps.release.outputs.commit }}
+          name: PSUM Check Interrogation v${{ steps.release.outputs.version }}
+          prerelease: ${{ steps.release.outputs.prerelease }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: artifacts/installer/*
+      - name: Attach installer to published release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          fail_on_unmatched_files: true
+          files: artifacts/installer/*

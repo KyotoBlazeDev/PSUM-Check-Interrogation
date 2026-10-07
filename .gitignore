@@ -9,4 +9,4 @@ obj/
 *.db
 *.db-*
 AppPackages/
-publish-source/
+artifacts/

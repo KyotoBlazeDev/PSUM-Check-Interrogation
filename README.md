@@ -35,3 +35,21 @@ dotnet publish '.\PSUM Check Interrogation WinUI 3.csproj' -c Release -p:Platfor
 ```
 
 Copy the **entire** `bin\Release\net8.0-windows10.0.19041.0\win-x64\publish` folder to the target Windows PC and run `PSUM Check Interrogation WinUI 3.exe` from that folder. The folder includes the .NET runtime and Windows App SDK binaries; the app does not require MSIX installation. It remains a multi-file deployment and requires a compatible Windows version and architecture. Use `win-x86` or `win-arm64` with the matching platform for those targets.
+
+## Setup installer and GitHub Releases
+
+The **Build** workflow publishes the self-contained x64 app, compiles an Inno Setup installer, verifies silent install/uninstall and installed file hashes on the disposable runner, and uploads the installer and its SHA-256 checksum as Actions artifacts on pushes and pull requests to `main`.
+
+For the first release, open **Actions → Release → Run workflow**, select `main`, enter `1.0.0`, and leave **prerelease** unchecked. A successful run creates a **draft** `v1.0.0` release containing `PSUM-Check-Interrogation-1.0.0-Setup-x64.exe` and its `.sha256` file. Download and test the setup, edit the release notes, then publish the draft. Publishing a release with a `vX.Y.Z` tag also rebuilds and attaches the installer from that tag. A manual run refuses an existing tag that points to a different commit.
+
+Setup installs the whole app under `%LOCALAPPDATA%\Programs\PSUM Check Interrogation`, creates a Start menu shortcut, and offers an optional desktop shortcut. It requires Windows 10 version 1809 or later with x64 compatibility. Updates reuse the same install location and app identity. Uninstall removes installed application files and retains the PSUM database under `%LOCALAPPDATA%\PSUM`.
+
+The installer is unsigned. The workflow uses the repository's built-in `GITHUB_TOKEN`; no LLT certificates or other LLT-specific secrets are required.
+
+To build setup locally, install the .NET 10 SDK and Inno Setup 6.3 or newer, then run:
+
+```powershell
+./scripts/Build-Installer.ps1 -Version 1.0.0
+```
+
+Output is written to `artifacts\installer`. The script verifies required WinUI resources and runtime files before compiling setup. GitHub's `windows-2022` runner includes Inno Setup.
