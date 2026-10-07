@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window x:Class="PSUM_Check_Interrogation_WinUI_3.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="PSUM Check Interrogation">
+    <Window.SystemBackdrop><MicaBackdrop /></Window.SystemBackdrop>
+        <NavigationView x:Name="AppNavigation" PaneTitle="PSUM" Header="Dashboard"
+                    PaneDisplayMode="Auto" AlwaysShowHeader="False" IsBackButtonVisible="Collapsed"
+                    IsSettingsVisible="False" SelectionChanged="Navigation_SelectionChanged">
+        <NavigationView.MenuItems>
+            <NavigationViewItem x:Name="DashboardNav" Content="Dashboard" Icon="Home" Tag="dashboard" />
+            <NavigationViewItem x:Name="CheckInNav" Content="Check-in" Icon="Edit" Tag="checkin" />
+            <NavigationViewItem x:Name="HistoryNav" Content="History" Icon="Document" Tag="history" />
+            <NavigationViewItem x:Name="StorageNav" Content="Battery Storage" Icon="Library" Tag="storage" />
+            <NavigationViewItem x:Name="SnapshotsNav" Content="Lenovo Snapshots" Icon="Calendar" Tag="snapshots" />
+            <NavigationViewItem x:Name="PartsNav" Content="HMM Parts Map" Icon="Map" Tag="parts" />
+            <NavigationViewItem x:Name="AlertsNav" Content="Alerts" Icon="Important" Tag="alerts" />
+            <NavigationViewItem x:Name="SourcesNav" Content="Data Sources &amp; Thresholds" Icon="List" Tag="sources" />
+        </NavigationView.MenuItems>
+        <NavigationView.FooterMenuItems>
+            <NavigationViewItem x:Name="DataNav" Content="Backup &amp; Restore" Icon="Save" Tag="data" />
+            <NavigationViewItem x:Name="AboutNav" Content="About" Icon="Help" Tag="about" />
+        </NavigationView.FooterMenuItems>
+        <Grid>
+            <ScrollViewer x:Name="DashboardPage">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+                    <TextBlock Text="Live battery status" FontSize="28" FontWeight="SemiBold" />
+                    <TextBlock Text="Current values from the Windows power API and battery WMI." TextWrapping="Wrap" />
+                    <Border x:Name="LiveStatusCard" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="ChargeText" Text="Charge: Reading…" FontSize="24" FontWeight="SemiBold" />
+                            <ProgressBar x:Name="ChargeBar" Minimum="0" Maximum="100" IsIndeterminate="True" Height="10" AutomationProperties.Name="Current battery charge" />
+                            <TextBlock x:Name="PowerText" Text="Power source: Reading…" FontSize="18" />
+                            <TextBlock x:Name="BatteryText" Text="Battery state: Reading…" FontSize="18" />
+                            <TextBlock x:Name="RuntimeText" Text="Estimated remaining time: Reading…" FontSize="18" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="HealthCard" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Capacity health" FontSize="22" FontWeight="SemiBold" />
+                            <TextBlock x:Name="HealthText" Text="Health: Reading…" FontSize="18" />
+                            <TextBlock x:Name="WearText" Text="Wear: Reading…" />
+                            <TextBlock x:Name="DesignText" Text="Design capacity: Reading…" />
+                            <TextBlock x:Name="FullText" Text="Full-charge capacity: Reading…" />
+                            <TextBlock x:Name="CycleText" Text="Cycle count: Reading…" />
+                            <TextBlock Text="Source: Windows battery WMI. Cached Lenovo registry values are not used for live health." TextWrapping="Wrap" Opacity="0.7" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="LiveInstrumentsCard" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20"><StackPanel Spacing="8"><TextBlock Text="Live WMI instruments" FontSize="22" FontWeight="SemiBold"/><TextBlock x:Name="LiveVoltageText" Text="Voltage: Reading…"/><ProgressBar x:Name="LiveVoltageBar" Maximum="20" Height="8"/><TextBlock x:Name="LiveTemperatureText" Text="Temperature: Reading…"/><ProgressBar x:Name="LiveTemperatureBar" Maximum="60" Height="8"/><TextBlock x:Name="LiveRateText" Text="Power flow: Reading…"/><TextBlock x:Name="LiveRemainingText" Text="Remaining capacity: Reading…"/><TextBlock Text="Windows WMI values; unavailable readings remain Unknown." Opacity="0.7"/></StackPanel></Border>
+                    <TextBlock x:Name="DashboardThresholdText" TextWrapping="Wrap"/>
+                    <InfoBar x:Name="ReplacementAlert" IsOpen="False" Severity="Error" Title="Battery replacement recommended" Message="Capacity health is below 30%." />
+                    <InfoBar x:Name="CriticalChargeAlert" IsOpen="False" Severity="Error" Title="Critical charge"/>
+                    <InfoBar x:Name="DiagnosticsIssue" IsOpen="False" Severity="Informational" Title="Battery diagnostics unavailable" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button Content="Refresh now" Click="Refresh_Click" />
+                        <TextBlock x:Name="UpdatedText" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <InfoBar x:Name="ReadError" IsOpen="False" Severity="Warning" Title="Battery data unavailable" />
+                    <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="Auto refresh" VerticalAlignment="Center"/><ComboBox x:Name="RefreshInterval" Width="130" SelectionChanged="RefreshInterval_Changed"/><TextBlock Text="seconds" VerticalAlignment="Center"/></StackPanel>
+                    <Border x:Name="TipsCard" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="16"><StackPanel Spacing="8"><Image x:Name="MascotImage" Width="80" Height="80" HorizontalAlignment="Left"/><TextBlock x:Name="TipTitle" FontWeight="SemiBold"/><TextBlock x:Name="TipBody" TextWrapping="Wrap"/><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Previous tip" Click="PreviousTip_Click"/><Button Content="Next tip" Click="NextTip_Click"/></StackPanel></StackPanel></Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="CheckInPage" Visibility="Collapsed">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+                    <TextBlock Text="Record a battery check-in" FontSize="28" FontWeight="SemiBold" />
+                    <TextBlock Text="Save the current reading with an optional note. The record receives a stable Evidence ID." TextWrapping="Wrap" />
+                    <TextBlock x:Name="CheckInSummary" Text="Current reading: Loading…" TextWrapping="Wrap" />
+                    <TextBox x:Name="CheckInNote" Header="Note (optional, up to 500 characters)" MaxLength="500" AcceptsReturn="True" TextWrapping="Wrap" Height="120" />
+                    <Button x:Name="SaveCheckInButton" Content="Save current reading" Click="SaveCheckIn_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                    <InfoBar x:Name="CheckInMessage" IsOpen="False" Severity="Informational" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <Grid x:Name="HistoryPage" Visibility="Collapsed" Padding="24" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="Saved check-ins" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Content="Reload" Click="ReloadHistory_Click" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ComboBox x:Name="BatteryFilter" Header="Battery" Width="220" />
+                        <ComboBox x:Name="StateFilter" Header="State" Width="180" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox x:Name="FromDateFilter" Header="From date" PlaceholderText="YYYY-MM-DD" Width="140" />
+                        <TextBox x:Name="ToDateFilter" Header="To date" PlaceholderText="YYYY-MM-DD" Width="140" />
+                        <Button Content="Apply" Click="ApplyFilters_Click" VerticalAlignment="Bottom" />
+                        <Button Content="Clear" Click="ClearFilters_Click" VerticalAlignment="Bottom" />
+                    </StackPanel>
+                    <TextBlock x:Name="HistoryCount" Text="Loading history…" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="ExportTextButton" Content="Export selected .txt" Click="ExportText_Click" IsEnabled="False" />
+                    <Button x:Name="ExportCsvButton" Content="Export shown .csv" Click="ExportCsv_Click" IsEnabled="False" />
+                    <Button x:Name="DeleteCheckInButton" Content="Delete selected" Click="DeleteCheckIn_Click" IsEnabled="False" />
+                </StackPanel>
+                <InfoBar x:Name="HistoryMessage" Grid.Row="3" IsOpen="False" Severity="Informational" />
+                <ListView x:Name="CheckInHistory" Grid.Row="4" SelectionMode="Single" SelectionChanged="HistorySelection_Changed" AutomationProperties.Name="Saved check-ins">
+                    <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding Display}" TextWrapping="Wrap" Margin="4,6"/></DataTemplate></ListView.ItemTemplate>
+                </ListView>
+            </Grid>
+
+            <ScrollViewer x:Name="StoragePage" Visibility="Collapsed">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
+                    <TextBlock Text="Battery Storage" FontSize="28" FontWeight="SemiBold" />
+                    <TextBlock Text="Reading retained Lenovo battery profiles…" x:Name="StorageIntro" TextWrapping="Wrap" />
+                    <Button Content="Refresh profiles" Click="RefreshStorage_Click" HorizontalAlignment="Left" />
+                    <InfoBar x:Name="StorageMessage" IsOpen="False" Severity="Informational" />
+                    <InfoBar x:Name="StorageReminder" IsOpen="False" Severity="Warning" Title="Stored-battery inspection reminder" />
+                    <ListView x:Name="StorageProfiles" Height="180" SelectionChanged="StorageSelection_Changed" AutomationProperties.Name="Battery profiles">
+                        <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding Display}" TextWrapping="Wrap" Margin="4,6"/></DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                    <TextBlock x:Name="StorageDetails" Text="Select a battery profile." TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox x:Name="StorageLifecycle" Header="Lifecycle" Width="260" />
+                        <Button x:Name="ApplyLifecycleButton" Content="Apply lifecycle" Click="ApplyLifecycle_Click" IsEnabled="False" VerticalAlignment="Bottom" />
+                    </StackPanel>
+                    <TextBlock Text="Physical storage inspection" FontSize="22" FontWeight="SemiBold" />
+                    <ComboBox x:Name="StorageInspected" Header="Battery physically inspected?" Width="300" SelectionChanged="InspectionAnswer_Changed" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ComboBox x:Name="StorageSwelling" Header="Swelling or deformation?" Width="210" SelectionChanged="InspectionAnswer_Changed" IsEnabled="False" />
+                        <ComboBox x:Name="StorageLeakage" Header="Leakage?" Width="150" SelectionChanged="InspectionAnswer_Changed" IsEnabled="False" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ComboBox x:Name="StorageOdor" Header="Unusual odor?" Width="210" SelectionChanged="InspectionAnswer_Changed" IsEnabled="False" />
+                        <ComboBox x:Name="StorageWarmth" Header="Unexpected warmth?" Width="210" SelectionChanged="InspectionAnswer_Changed" IsEnabled="False" />
+                    </StackPanel>
+                    <TextBlock x:Name="InspectionWarning" Text="If a hazard is observed, stop the check and skip measurements." TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ComboBox x:Name="StorageChargeMeasured" Header="Charge measured?" Width="180" SelectionChanged="InspectionAnswer_Changed" />
+                        <TextBox x:Name="StorageChargeValue" Header="Charge (%)" Width="130" IsEnabled="False" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ComboBox x:Name="StorageVoltageMeasured" Header="Voltage measured?" Width="180" SelectionChanged="InspectionAnswer_Changed" />
+                        <TextBox x:Name="StorageVoltageValue" Header="Voltage (V)" Width="130" IsEnabled="False" />
+                    </StackPanel>
+                    <Button x:Name="SaveInspectionButton" Content="Save inspection" Click="SaveInspection_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                    <TextBlock Text="Inspection history" FontSize="22" FontWeight="SemiBold" />
+                    <StackPanel Spacing="8"><ComboBox x:Name="InspectionResultFilter" Header="Result" Width="200" HorizontalAlignment="Left"/><StackPanel Orientation="Horizontal" Spacing="8"><TextBox x:Name="InspectionFromFilter" Header="From date" PlaceholderText="YYYY-MM-DD" Width="140"/><TextBox x:Name="InspectionToFilter" Header="To date" PlaceholderText="YYYY-MM-DD" Width="140"/><Button Content="Apply" Click="ApplyInspectionFilters_Click" VerticalAlignment="Bottom"/></StackPanel></StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Compare selected" Click="CompareInspections_Click"/><Button Content="Export selected .txt" Click="ExportInspectionText_Click"/><Button Content="Export shown .csv" Click="ExportInspectionsCsv_Click"/></StackPanel>
+                    <ListView x:Name="StoredInspectionHistory" Height="230" SelectionMode="Multiple" AutomationProperties.Name="Stored battery inspections; select two to compare">
+                        <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding Display}" TextWrapping="Wrap" Margin="4,6"/></DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                    <TextBlock x:Name="InspectionComparison" TextWrapping="Wrap"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="SnapshotsPage" Visibility="Collapsed">
+              <StackPanel Padding="24" Spacing="12" MaxWidth="900" HorizontalAlignment="Left">
+                <TextBlock Text="Lenovo battery snapshots" FontSize="28" FontWeight="SemiBold"/>
+                <TextBlock Text="Read-only Lenovo Vantage WMI cache. The time shown is when PSUM queried it, not when Vantage refreshed it. One current row per battery per local day; earlier queries are archived." TextWrapping="Wrap"/>
+                <TextBlock x:Name="VantagePolicyText" Text="Vantage WMI policy: reading…" TextWrapping="Wrap"/>
+                <StackPanel Spacing="8"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Query Lenovo now" Click="QueryLenovo_Click"/><Button Content="Reload saved" Click="ReloadSnapshots_Click"/></StackPanel><TextBlock x:Name="SnapshotCount"/><ComboBox x:Name="SnapshotBatteryFilter" Header="Battery" Width="200" HorizontalAlignment="Left"/><StackPanel Orientation="Horizontal" Spacing="8"><TextBox x:Name="SnapshotFromFilter" Header="From date" PlaceholderText="YYYY-MM-DD" Width="140"/><TextBox x:Name="SnapshotToFilter" Header="To date" PlaceholderText="YYYY-MM-DD" Width="140"/><Button Content="Apply" Click="ApplySnapshotFilters_Click" VerticalAlignment="Bottom"/></StackPanel><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Compare selected" Click="CompareSnapshots_Click"/><Button Content="Export shown .csv" Click="ExportSnapshotsCsv_Click"/></StackPanel></StackPanel>
+                <ListView x:Name="SnapshotList" Height="230" SelectionMode="Multiple" SelectionChanged="SnapshotSelection_Changed" AutomationProperties.Name="Saved Lenovo snapshots; select two to compare">
+                    <ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding Display}" TextWrapping="Wrap" Margin="4,6"/></DataTemplate></ListView.ItemTemplate>
+                </ListView>
+                <InfoBar x:Name="SnapshotMessage" IsOpen="False" Severity="Informational"/>
+                <Border BorderBrush="#FFB47718" BorderThickness="1" Background="#FF0B0F10" Padding="12" MinWidth="640">
+                  <StackPanel Spacing="12">
+                    <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                      <TextBlock Text="04 / CHASSIS  ·  BATTERY DIAGNOSTICS" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/>
+                      <TextBlock x:Name="ChassisIdentity" Grid.Column="1" Text="--" Foreground="#FFF6DEA0" FontFamily="Consolas"/>
+                    </Grid>
+                    <Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/>
+                    <Grid ColumnSpacing="14" MinHeight="330">
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="260"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                      <StackPanel VerticalAlignment="Stretch" Spacing="14">
+                        <StackPanel><Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/><TextBlock Text="STATUS" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/><TextBlock x:Name="ChassisStatus" Text="Not available" Foreground="#FFF6DEA0" TextWrapping="Wrap"/></StackPanel>
+                        <StackPanel><Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/><TextBlock Text="LENOVO HEALTH" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/><TextBlock x:Name="ChassisHealth" Text="Not available" Foreground="#FFF6DEA0" TextWrapping="Wrap"/></StackPanel>
+                        <StackPanel><Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/><TextBlock Text="CAPACITY HEALTH" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/><TextBlock x:Name="ChassisCapacity" Text="Not available" Foreground="#FFF6DEA0" TextWrapping="Wrap"/></StackPanel>
+                      </StackPanel>
+                      <Border Grid.Column="1" Background="White" BorderBrush="#FF8F8F8F" BorderThickness="1" VerticalAlignment="Center" Padding="8">
+                        <StackPanel Spacing="4"><Image x:Name="ChassisImage" Height="210" Stretch="Uniform" AutomationProperties.Name="Reference drawing of a battery chassis"/><TextBlock Text="BMS: TOP  /  CONNECTOR: LEFT CENTER" Foreground="Black" FontFamily="Consolas" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="BATTERY ILLUSTRATION / REFERENCE ONLY" Foreground="Black" FontFamily="Consolas" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center"/></StackPanel>
+                      </Border>
+                      <StackPanel Grid.Column="2" Spacing="8">
+                        <StackPanel><Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/><TextBlock Text="VOLTAGE" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/><TextBlock x:Name="ChassisVoltage" Text="Not available" Foreground="#FFF6DEA0" TextWrapping="Wrap"/></StackPanel>
+                        <StackPanel><Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/><TextBlock Text="TEMPERATURE" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/><TextBlock x:Name="ChassisTemperature" Text="Not available" Foreground="#FFF6DEA0" TextWrapping="Wrap"/></StackPanel>
+                        <StackPanel><Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/><TextBlock Text="POWER" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/><TextBlock x:Name="ChassisPower" Text="Not available" Foreground="#FFF6DEA0" TextWrapping="Wrap"/></StackPanel>
+                        <StackPanel><Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/><TextBlock Text="ADAPTER" Foreground="#FFFFAD32" FontFamily="Consolas" FontWeight="Bold"/><TextBlock x:Name="ChassisAdapter" Text="Not available" Foreground="#FFF6DEA0" TextWrapping="Wrap"/></StackPanel>
+                      </StackPanel>
+                    </Grid>
+                    <Border BorderBrush="#FFB47718" BorderThickness="0,1,0,0"/>
+                    <TextBlock Text="SAVED LENOVO_BATTERY DATA  /  NOT LIVE  /  NO SAFETY VERDICT" Foreground="#FFC58B40" FontFamily="Consolas" FontSize="11"/>
+                  </StackPanel>
+                </Border>
+                <TextBlock Text="Saved cache instruments · visual references" FontSize="18" FontWeight="SemiBold"/><TextBlock x:Name="SnapshotChargeLabel" Text="Charge: Unknown"/><ProgressBar x:Name="SnapshotChargeGauge" Maximum="100" Height="9" AutomationProperties.Name="Saved snapshot charge"/><TextBlock x:Name="SnapshotCapacityLabel" Text="Capacity ratio: Unknown"/><ProgressBar x:Name="SnapshotCapacityGauge" Maximum="100" Height="9" AutomationProperties.Name="Saved snapshot capacity ratio"/><TextBlock x:Name="SnapshotVoltageLabel" Text="Voltage: Unknown"/><ProgressBar x:Name="SnapshotVoltageGauge" Maximum="20" Height="9" AutomationProperties.Name="Saved snapshot voltage"/><TextBlock x:Name="SnapshotTemperatureLabel" Text="Temperature: Unknown"/><ProgressBar x:Name="SnapshotTemperatureGauge" Maximum="60" Height="9" AutomationProperties.Name="Saved snapshot temperature"/><TextBlock Text="Saved observation trends" FontSize="18" FontWeight="SemiBold"/><StackPanel x:Name="SnapshotTrendBars" Spacing="6"/><TextBlock x:Name="SnapshotHighlights" TextWrapping="Wrap"/><TextBlock x:Name="SnapshotDetails" Text="Select a snapshot to see every Lenovo field." TextWrapping="Wrap"/><TextBlock x:Name="SnapshotComparison" TextWrapping="Wrap"/>
+              </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="PartsPage" Visibility="Collapsed"><StackPanel Padding="24" Spacing="12" MaxWidth="900" HorizontalAlignment="Left"><TextBlock Text="L15 Gen 2 HMM parts map" FontSize="28" FontWeight="SemiBold"/><TextBlock Text="Parts reference only; no automatic fault diagnosis."/><TextBlock Text="Only use a Lenovo-authorized service provider to repair your product." FontWeight="SemiBold"/><Image x:Name="PartsImage" MaxWidth="600" Stretch="Uniform" HorizontalAlignment="Left" AutomationProperties.Name="Exploded parts diagram of the ThinkPad L15 Gen 2"/><TextBlock Text="21 · Built-in battery — rechargeable pack monitored by PSUM.&#10;b · AC power adapter — external power source; WMI does not test it.&#10;27 · Coin-cell battery — separate from the rechargeable battery.&#10;11 / 28 · System board — variant depends on storage configuration.&#10;9 / 10 · AMD cooling — separate from battery temperature.&#10;16 · Base cover — physical access part." TextWrapping="Wrap"/><TextBlock Text="Source: ThinkPad L14/L15 Gen 2 Hardware Maintenance Manual, major FRUs and CRUs."/></StackPanel></ScrollViewer>
+
+            <ScrollViewer x:Name="AlertsPage" Visibility="Collapsed"><StackPanel Padding="24" Spacing="12" MaxWidth="760" HorizontalAlignment="Left"><TextBlock Text="Alerts" FontSize="28" FontWeight="SemiBold"/><CheckBox x:Name="RemindAtLaunch" Content="Remind at launch" Click="RemindAtLaunch_Click"/><Button Content="Refresh alerts" Click="RefreshAlerts_Click" HorizontalAlignment="Left"/><TextBlock x:Name="AlertsText" TextWrapping="Wrap"/></StackPanel></ScrollViewer>
+
+            <ScrollViewer x:Name="SourcesPage" Visibility="Collapsed">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="850" HorizontalAlignment="Left">
+                    <TextBlock Text="Data sources and thresholds" FontSize="28" FontWeight="SemiBold"/>
+                    <TextBlock Text="Windows supplies current power and battery readings. Lenovo profiles and snapshots are cached; their freshness is unknown." TextWrapping="Wrap"/>
+                    <TextBlock x:Name="SourceRows" Text="Reading sources…" TextWrapping="Wrap"/>
+                    <TextBlock Text="Compare current behavior with entered thresholds" FontSize="22" FontWeight="SemiBold"/>
+                    <TextBlock Text="These values are for diagnosis only. PSUM does not read or change active firmware charging thresholds." TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Spacing="12"><NumberBox x:Name="StartThreshold" Header="Start charging (%)" Width="170" Minimum="0" Maximum="99" Value="40"/><NumberBox x:Name="StopThreshold" Header="Stop charging (%)" Width="170" Minimum="1" Maximum="100" Value="80"/><Button Content="Save comparison" Click="SaveThresholds_Click" VerticalAlignment="Bottom"/></StackPanel>
+                    <InfoBar x:Name="ThresholdMessage" IsOpen="False" Severity="Informational"/>
+                    <TextBlock x:Name="ThresholdResult" TextWrapping="Wrap"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="DataPage" Visibility="Collapsed">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+                    <TextBlock Text="Backup and restore" FontSize="28" FontWeight="SemiBold" />
+                    <TextBlock Text="Create a complete PSUM database backup before moving or replacing this PC. Restore validates the selected backup and saves a safety copy of the current database first." TextWrapping="Wrap" />
+                    <Button x:Name="BackupButton" Content="Create backup…" Click="Backup_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                    <Button x:Name="RestoreButton" Content="Restore from backup…" Click="Restore_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                    <InfoBar x:Name="DataMessage" IsOpen="False" Severity="Informational" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="AboutPage" Visibility="Collapsed">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+                    <TextBlock Text="PSUM Check Interrogation" FontSize="28" FontWeight="SemiBold" />
+                    <TextBlock Text="Unpackaged WinUI 3 edition. Run the EXE from its published folder without installing an MSIX." TextWrapping="Wrap" />
+                    <TextBlock Text="Dashboard reads live Windows battery status and WMI capacity diagnostics. Check-in and History use the original PSUM database at %LOCALAPPDATA%\PSUM\psum.sqlite3." TextWrapping="Wrap" />
+                    <TextBlock Text="Lenovo snapshots are read from the Vantage WMI cache. Data Sources shows the origin and limits of each reading." TextWrapping="Wrap" />
+                    <HyperlinkButton Content="Lenovo Battery Q&amp;A and storage guidance" NavigateUri="https://support.lenovo.com/solutions/ht509084"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </NavigationView>
+</Window>

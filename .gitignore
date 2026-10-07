@@ -1,0 +1,12 @@
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.zip
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+AppPackages/
+publish-source/
