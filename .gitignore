@@ -10,3 +10,4 @@ obj/
 *.db-*
 AppPackages/
 artifacts/
+/MEMORY.md
