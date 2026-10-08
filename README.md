@@ -1,5 +1,14 @@
 # PSUM Check Interrogation WinUI 3
 
+[![Build on main](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/actions/workflows/build.yml)
+[![CodeQL analysis on main](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/actions/workflows/codeql.yml)
+[![Latest stable release](https://img.shields.io/github/v/release/KyotoBlazeDev/PSUM-Check-Interrogation?label=stable%20release)](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/releases/latest)
+[![License](https://img.shields.io/github/license/KyotoBlazeDev/PSUM-Check-Interrogation)](LICENSE)
+[![Platform: Windows 10 1809 or later, x64 installer](https://img.shields.io/badge/platform-Windows%2010%201809%2B%20%7C%20x64-0078D4)](#install)
+[![Current release signing: unsigned](https://img.shields.io/badge/signing-unsigned-orange)](#automated-analysis-and-security)
+
+[Install](#install) · [Standard / Business modes](#standard-and-business-modes-development) · [Features](#features) · [Build](#build-and-run) · [Security](#automated-analysis-and-security) · [Report a bug](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/issues)
+
 PSUM Check Interrogation is a Windows battery monitoring and inspection tool in the **PSUM family**, with local check-ins, evidence exports, stored-battery inspections, and Lenovo cached observations. This repository contains the unpackaged **C# / WinUI 3 edition**, ported from the original Python application.
 
 **Current stable release:** [v1.0.0](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/releases/tag/v1.0.0), released 7 October 2026. The WinUI 3 edition is in maintenance. The app and installer are currently unsigned.
@@ -25,7 +34,17 @@ The unified app supports **Standard** and **Business** modes. Open **Mode & Sett
 
 Standard retains the personal dashboard, check-ins, history, stored-battery inspections, Lenovo snapshots, alerts and backup/restore. Business adds the maintenance workspace from PSUM Check - Business Edition: asset tags and label provenance, five physical observations, 1–365 day inspection intervals (90 by default), replacement tickets and inventory IDs, lifecycle trends, due reminders, CSV/JSON audit exports and diagnostic logs. Switching mode retains your records and unfinished form entries.
 
-Standard capacity classifications remain Good ≥80%, Service recommended 60–<80%, Poor 30–<60%, Critical <30%. Business uses Healthy ≥80%, Watch 70–<80%, Degraded 50–<70%, Critical <50%. The dashboard and alerts use the selected policy; Business audit exports always use Business policy. These are capacity estimates and application policies. Physical hazards take precedence in Business inspection advice; unavailable readings remain Unknown.
+| Capacity policy | Standard | Business |
+| --- | --- | --- |
+| ≥80% | Good | Healthy |
+| 70–<80% | Service recommended | Watch |
+| 60–<70% | Service recommended | Degraded |
+| 50–<60% | Poor | Degraded |
+| 30–<50% | Poor | Critical |
+| <30% | Critical | Critical |
+| Unavailable | Unknown | Unknown |
+
+The dashboard and alerts use the selected policy; Business audit exports always use Business policy. These are capacity estimates and application policies. Physical hazards take precedence in Business inspection advice; unavailable readings remain Unknown.
 
 Both modes use the existing `%LOCALAPPDATA%\PSUM\psum.sqlite3` telemetry database. Business audit events reuse `%LOCALAPPDATA%\PSUM\BusinessEdition\events`, so existing Business inspection records are available. The separate legacy Business `telemetry.sqlite3` is retained and is not automatically merged; use Backup & Restore to explicitly restore a compatible legacy telemetry backup, which replaces the shared telemetry history after confirmation and a safety backup. SQLite backups do not include Business audit files: export JSON from the Business workspace or separately back up the events folder.
 
@@ -153,3 +172,14 @@ See [LICENSE](LICENSE) for the MIT license.
 ## Development disclosure
 
 This utility was built with Codex assistance. You may review the source code before installing or modifying it.
+
+<details>
+<summary>README badges and GitHub formatting</summary>
+
+Build and CodeQL badges show workflow status for remote `main`; they do not describe uncommitted changes or certify that there are no security findings. The stable-release and license badges use Shields.io repository metadata. The platform and signing badges are maintained manually and should be updated when release requirements or signing change. Remote badge images may be cached or temporarily unavailable; their links open the underlying workflow, release, license or documentation.
+
+This README uses linked Markdown images with descriptive alternative text, heading links, GitHub Flavored Markdown tables, fenced PowerShell examples, and a collapsible HTML `details` / `summary` section. Badge widgets are served as images and require no executable scripts in the README.
+
+Formatting references: [GitHub workflow badges](https://docs.github.com/en/actions/how-tos/monitor-workflows/add-a-status-badge), [GitHub Markdown formatting](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax), [collapsed sections](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-collapsed-sections), [Shields.io release badges](https://shields.io/badges/git-hub-release), and [license badges](https://shields.io/badges/git-hub-license).
+
+</details>
