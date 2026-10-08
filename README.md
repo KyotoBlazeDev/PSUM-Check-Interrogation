@@ -13,6 +13,12 @@ PSUM Check Interrogation is a Windows battery monitoring and inspection tool in 
 
 **Current stable release:** [v1.0.0](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/releases/tag/v1.0.0), released 7 October 2026. The WinUI 3 edition is in maintenance. The app and installer are currently unsigned.
 
+## Planned v1.1.0 release
+
+PSUM Check Interrogation **v1.1.0 is planned for 3 January 2027**, as announced on X. The release will bring Standard and Business editions together in one application, with mode selection on the **Mode & Settings** page.
+
+Features are being developed and refined for the next release. Feature scope and release notes may change over the coming weeks and months based on feedback. Follow this repository's [releases](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/releases) for published versions and share ordinary bug reports or feature requests through [Issues](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/issues).
+
 ## Install
 
 1. Download the x64 setup executable and matching `.sha256` file from the [official releases](https://github.com/KyotoBlazeDev/PSUM-Check-Interrogation/releases).
