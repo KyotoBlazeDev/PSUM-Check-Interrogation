@@ -21,8 +21,9 @@ internal sealed record BatteryDiagnostics(
     string BatteryId,
     uint? RemainingCapacityMWh = null, uint? VoltageMv = null, uint? ReportedVoltageMv = null,
     uint? DesignVoltageMv = null, double? TemperatureC = null, int? RateMw = null,
-    string? VoltageWarning = null)
+    string? VoltageWarning = null, string? Status = null)
 {
+    public string? SourceWarning { get; init; }
     public static BatteryDiagnostics Unknown(string? issue = null) =>
         new(null, null, "Unknown", null, null, null, issue, BatteryIdentity.Create(null, null, null));
 }
@@ -42,13 +43,20 @@ internal static class BatteryDiagnosticsProvider
     // Windows PowerShell 5.1 is intentional: BatteryStaticData may fail with
     // "Generic failure" through CIM on machines where Get-WmiObject succeeds.
     private const string Query = """
-        $win32 = @(Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object Name,DeviceID)
-        $static = @(Get-WmiObject -Namespace root/wmi -Class BatteryStaticData -ErrorAction SilentlyContinue | Select-Object InstanceName,Tag,DesignedCapacity,DesignedVoltage,ManufactureName)
-        $full = @(Get-CimInstance -Namespace root/wmi BatteryFullChargedCapacity -ErrorAction SilentlyContinue | Select-Object InstanceName,Tag,FullChargedCapacity)
-        $cycles = @(Get-CimInstance -Namespace root/wmi BatteryCycleCount -ErrorAction SilentlyContinue | Select-Object InstanceName,Tag,CycleCount)
-        $dynamic = @(Get-CimInstance -Namespace root/wmi BatteryStatus -ErrorAction SilentlyContinue | Select-Object InstanceName,Tag,RemainingCapacity,Voltage,ChargeRate,DischargeRate,PowerOnline,Charging,Discharging)
-        $temperature = @(Get-CimInstance -Namespace root/wmi BatteryTemperature -ErrorAction SilentlyContinue | Select-Object InstanceName,Tag,Temperature)
-        [pscustomobject]@{Win32=$win32;Static=$static;Full=$full;Cycle=$cycles;Dynamic=$dynamic;Temperature=$temperature} | ConvertTo-Json -Depth 4 -Compress
+        $queryIssues = New-Object 'System.Collections.Generic.List[string]'
+        function Read-BatteryClass($class, $ns, $legacy) {
+            try {
+                if ($legacy) { Get-WmiObject -Namespace $ns -Class $class -ErrorAction Stop }
+                else { Get-CimInstance -Namespace $ns -ClassName $class -ErrorAction Stop }
+            } catch { $queryIssues.Add($class + ': ' + $_.Exception.Message) }
+        }
+        $win32 = @(Read-BatteryClass 'Win32_Battery' 'root/cimv2' $false | Select-Object Name,DeviceID)
+        $static = @(Read-BatteryClass 'BatteryStaticData' 'root/wmi' $true | Select-Object InstanceName,Tag,DesignedCapacity,DesignedVoltage,ManufactureName)
+        $full = @(Read-BatteryClass 'BatteryFullChargedCapacity' 'root/wmi' $false | Select-Object InstanceName,Tag,FullChargedCapacity)
+        $cycles = @(Read-BatteryClass 'BatteryCycleCount' 'root/wmi' $false | Select-Object InstanceName,Tag,CycleCount)
+        $dynamic = @(Read-BatteryClass 'BatteryStatus' 'root/wmi' $false | Select-Object InstanceName,Tag,RemainingCapacity,Voltage,ChargeRate,DischargeRate,PowerOnline,Charging,Discharging)
+        $temperature = @(Read-BatteryClass 'BatteryTemperature' 'root/wmi' $false | Select-Object InstanceName,Tag,Temperature)
+        [pscustomobject]@{Win32=$win32;Static=$static;Full=$full;Cycle=$cycles;Dynamic=$dynamic;Temperature=$temperature;QueryIssues=@($queryIssues.ToArray())} | ConvertTo-Json -Depth 4 -Compress
         """;
 
     public static async Task<BatteryDiagnostics> ReadAsync()
@@ -59,7 +67,7 @@ internal static class BatteryDiagnosticsProvider
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "powershell.exe",
+                    FileName = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe"),
                     Arguments = "-NoProfile -NonInteractive -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(Query)),
                     UseShellExecute = false,
                     CreateNoWindow = true,
@@ -78,15 +86,17 @@ internal static class BatteryDiagnosticsProvider
             catch (OperationCanceledException)
             {
                 process.Kill(entireProcessTree: true);
+                DiagnosticsLog.Warning("BatteryQuery.Timeout");
                 return BatteryDiagnostics.Unknown("Windows WMI query timed out.");
             }
             await error;
-            if (process.ExitCode != 0) return BatteryDiagnostics.Unknown("Windows WMI query failed.");
+            if (process.ExitCode != 0) { DiagnosticsLog.Warning("BatteryQuery.Exit", $"exitCode={process.ExitCode}"); return BatteryDiagnostics.Unknown("Windows WMI query failed."); }
             using var document = JsonDocument.Parse(await output);
             return Parse(document.RootElement);
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or JsonException or System.IO.IOException)
         {
+            DiagnosticsLog.Error("BatteryQuery.Failed", ex);
             return BatteryDiagnostics.Unknown("Windows WMI data is unavailable.");
         }
     }
@@ -95,6 +105,10 @@ internal static class BatteryDiagnosticsProvider
     {
         var win32 = Rows(root, "Win32");
         var groups = new[] { Rows(root, "Static"), Rows(root, "Full"), Rows(root, "Cycle"), Rows(root, "Dynamic"), Rows(root, "Temperature") };
+        string? sourceWarning = root.TryGetProperty("QueryIssues", out var issues) && issues.ValueKind == JsonValueKind.Array
+            ? string.Join("; ", issues.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString())) : null;
+        if (win32.Length == 0 && groups.All(rows => rows.Length == 0))
+            return BatteryDiagnostics.Unknown(string.IsNullOrWhiteSpace(sourceWarning) ? "No battery data detected." : "Battery data could not be read. " + sourceWarning);
         if (win32.Length > 1 || groups.Any(rows => rows.Length > 1))
             return BatteryDiagnostics.Unknown("Multiple batteries detected; per-battery readings are hidden.");
 
@@ -107,6 +121,9 @@ internal static class BatteryDiagnosticsProvider
         }
         if (identities.Count > 1)
             return BatteryDiagnostics.Unknown("Battery WMI identities disagree; per-battery readings are hidden.");
+        var tags = groups.SelectMany(rows => rows).Select(row => Positive(row, "Tag")).Where(tag => tag is not null).Distinct().ToArray();
+        if (tags.Length > 1)
+            return BatteryDiagnostics.Unknown("Battery changed during the query; capture another reading.");
 
         uint? design = Positive(groups[0].FirstOrDefault(), "DesignedCapacity");
         uint? full = Positive(groups[1].FirstOrDefault(), "FullChargedCapacity");
@@ -116,7 +133,7 @@ internal static class BatteryDiagnosticsProvider
             Text(win32.FirstOrDefault(), "Name"),
             Text(win32.FirstOrDefault(), "DeviceID"));
         var dynamic = groups[3].FirstOrDefault();
-        uint? remaining = Positive(dynamic, "RemainingCapacity");
+        uint? remaining = Nonnegative(dynamic, "RemainingCapacity");
         uint? designVoltage = Positive(groups[0].FirstOrDefault(), "DesignedVoltage");
         uint? reportedVoltage = Positive(dynamic, "Voltage");
         string? voltageWarning = reportedVoltage is uint rv && rv >= 100_000 ? $"Reported voltage {rv / 1000.0:0.00} V is invalid." :
@@ -128,18 +145,19 @@ internal static class BatteryDiagnosticsProvider
             ? Math.Round(c, 1) : null;
         uint? chargingRate = Positive(dynamic, "ChargeRate");
         uint? dischargingRate = Positive(dynamic, "DischargeRate");
-        int? rate = chargingRate is uint cr ? (int)Math.Min(cr, int.MaxValue) :
-            dischargingRate is uint dr ? -(int)Math.Min(dr, int.MaxValue) : null;
+        bool Flag(string property) => dynamic.ValueKind == JsonValueKind.Object && dynamic.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.True;
+        int? rate = Flag("Charging") && chargingRate is uint cr ? (int)Math.Min(cr, int.MaxValue) :
+            Flag("Discharging") && dischargingRate is uint dr ? -(int)Math.Min(dr, int.MaxValue) : null;
         if (design is null || full is null)
-            return new(null, null, "Unknown", design, full, cycles, null, batteryId, remaining, voltage, reportedVoltage, designVoltage, temperature, rate, voltageWarning);
+            return new(null, null, "Unknown", design, full, cycles, null, batteryId, remaining, voltage, reportedVoltage, designVoltage, temperature, rate, voltageWarning, StatusText(dynamic)) { SourceWarning = sourceWarning };
 
         double percent = Math.Clamp((double)full.Value / design.Value * 100, 0, 100);
         double rounded = Math.Round(percent, 1);
-        string label = rounded >= 80 ? "Good" : rounded >= 60 ? "Service recommended" :
-            rounded >= 30 ? "Poor" : "Critical";
-        return new(rounded, Math.Round(100 - percent, 1), label, design, full, cycles, null, batteryId, remaining, voltage, reportedVoltage, designVoltage, temperature, rate, voltageWarning);
+        string label = BusinessPolicy.Classify(rounded);
+        return new(rounded, Math.Round(100 - percent, 1), label, design, full, cycles, null, batteryId, remaining, voltage, reportedVoltage, designVoltage, temperature, rate, voltageWarning, StatusText(dynamic)) { SourceWarning = sourceWarning };
     }
 
+    private static string StatusText(JsonElement row) => row.ValueKind != JsonValueKind.Object || !new[] { "Charging", "Discharging", "PowerOnline" }.All(p => row.TryGetProperty(p, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False) ? "Unavailable" : new[] { "Charging", "Discharging", "PowerOnline" }.Where(p => row.GetProperty(p).ValueKind == JsonValueKind.True).DefaultIfEmpty("Idle / offline").Aggregate((a, b) => a + ", " + b);
     private static string? Text(JsonElement row, string property) =>
         row.ValueKind == JsonValueKind.Object && row.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString() : null;
@@ -156,9 +174,12 @@ internal static class BatteryDiagnosticsProvider
     }
 
     private static uint? Positive(JsonElement row, string property)
+        => Nonnegative(row, property) is uint number && number > 0 ? number : null;
+
+    private static uint? Nonnegative(JsonElement row, string property)
     {
         if (row.ValueKind != JsonValueKind.Object || !row.TryGetProperty(property, out var value)) return null;
-        if (value.ValueKind == JsonValueKind.Number && value.TryGetUInt32(out uint number) && number > 0 && number != uint.MaxValue)
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetUInt32(out uint number) && number != uint.MaxValue)
             return number;
         return null;
     }

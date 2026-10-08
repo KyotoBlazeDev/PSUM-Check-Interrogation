@@ -320,6 +320,7 @@ public sealed partial class MainWindow
             $"Temperature: {(_diagnostics.TemperatureC is double temp ? $"{temp:0.0} °C" : "Unknown")} — Windows WMI BatteryTemperature\n" +
             $"Rate: {(_diagnostics.RateMw is int rate ? $"{rate / 1000.0:+0.00;-0.00} W" : "Unknown")} — Windows WMI BatteryStatus\n" +
             $"Capacity health: {(_diagnostics.HealthPercent is double health ? $"{health:0.0}%" : "Unknown")} — calculated from Windows WMI capacities\n" +
+            $"Capacity policy: {(_businessMode ? "Business: Healthy ≥80%, Watch ≥70%, Degraded ≥50%, Critical <50%" : "Standard: Good ≥80%, Service recommended ≥60%, Poor ≥30%, Critical <30%")}\n" +
             "Lenovo battery fields: see Lenovo Snapshots — Lenovo Vantage WMI cache (freshness unknown)\n" +
             "Retained battery profiles: see Battery Storage — Lenovo registry cache (freshness unknown)" +
             (_storageEntries.FirstOrDefault(entry => entry.Profile.IsCurrent) is StorageEntry profile

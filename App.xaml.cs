@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Data;
@@ -34,6 +34,13 @@ namespace PSUM_Check_Interrogation_WinUI_3
         /// </summary>
         public App()
         {
+            UnhandledException += (_, e) => DiagnosticsLog.Error("UI.UnhandledException", e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                if (e.ExceptionObject is Exception exception) DiagnosticsLog.Error("Runtime.UnhandledException", exception);
+            };
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) => DiagnosticsLog.Error("Task.UnobservedException", e.Exception);
+            DiagnosticsLog.Info("App.Start", $"version={typeof(App).Assembly.GetName().Version} os={Environment.OSVersion.Version} runtime={Environment.Version}");
             InitializeComponent();
         }
 

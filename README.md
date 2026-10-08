@@ -17,11 +17,27 @@ PSUM Check Interrogation is a Windows battery monitoring and inspection tool in 
 
 Setup requires Windows 10 version 1809 or later with x64 compatibility and includes the .NET runtime and Windows App SDK files. It installs for the current user without requiring administrator privileges. Battery readings depend on hardware and firmware; Lenovo WMI may be unavailable or access-denied.
 
+## Standard and Business modes (development)
+
+The working source includes the unified modes described below. These additions have not yet been published in stable v1.0.0.
+
+The unified app supports **Standard** and **Business** modes. Open **Mode & Settings** in the navigation footer to switch immediately. The preference is saved per Windows user; first launch defaults to Standard.
+
+Standard retains the personal dashboard, check-ins, history, stored-battery inspections, Lenovo snapshots, alerts and backup/restore. Business adds the maintenance workspace from PSUM Check - Business Edition: asset tags and label provenance, five physical observations, 1–365 day inspection intervals (90 by default), replacement tickets and inventory IDs, lifecycle trends, due reminders, CSV/JSON audit exports and diagnostic logs. Switching mode retains your records and unfinished form entries.
+
+Standard capacity classifications remain Good ≥80%, Service recommended 60–<80%, Poor 30–<60%, Critical <30%. Business uses Healthy ≥80%, Watch 70–<80%, Degraded 50–<70%, Critical <50%. The dashboard and alerts use the selected policy; Business audit exports always use Business policy. These are capacity estimates and application policies. Physical hazards take precedence in Business inspection advice; unavailable readings remain Unknown.
+
+Both modes use the existing `%LOCALAPPDATA%\PSUM\psum.sqlite3` telemetry database. Business audit events reuse `%LOCALAPPDATA%\PSUM\BusinessEdition\events`, so existing Business inspection records are available. The separate legacy Business `telemetry.sqlite3` is retained and is not automatically merged; use Backup & Restore to explicitly restore a compatible legacy telemetry backup, which replaces the shared telemetry history after confirmation and a safety backup. SQLite backups do not include Business audit files: export JSON from the Business workspace or separately back up the events folder.
+
+Business audit history is append-only at application level, not tamper-proof. It remains local and per Windows user, with no cloud inventory or background fleet collection. Diagnostic logs retain the Business Edition log location and bounded rotation, and omit asset tags, notes, serials and operator identity. The unified app keeps this repository's existing unpackaged build and installer identity.
+
+Run `dotnet run --project Verification/Verification.csproj` to verify mode persistence, both capacity policies, battery parsing, physical hazard precedence, audit persistence/overwrite protection, export escaping, diagnostic retention, and telemetry backup/restore.
+
 ## Features
 
 ### Live battery diagnostics
 
-The current window reads charge percentage, AC state, battery state, and Windows' remaining-time estimate through `GetSystemPowerStatus`. It refreshes those values at a selectable 10–300 second interval. On launch and manual refresh, it also queries Windows battery WMI for design capacity, full-charge capacity, cycle count, voltage, temperature, power flow, and remaining capacity. Capacity health and wear follow the original PSUM thresholds, including a replacement alert below 30%. Unsupported firmware values remain `Unknown`.
+The current window reads charge percentage, AC state, battery state, and Windows' remaining-time estimate through `GetSystemPowerStatus`. It refreshes those values at a selectable 10–300 second interval. On launch and manual refresh, it also queries Windows battery WMI for design capacity, full-charge capacity, cycle count, voltage, temperature, power flow, and remaining capacity. Capacity health and wear follow the selected mode policy: the replacement alert opens below 30% in Standard mode and below 50% in Business mode. Unsupported firmware values remain `Unknown`.
 
 ### Check-ins and evidence
 
@@ -29,7 +45,7 @@ Manual check-ins save the current charge, state, health, cycle count, an optiona
 
 ### Navigation
 
-Use the navigation menu to switch between **Dashboard**, **Check-in**, **History**, **Battery Storage**, **Lenovo Snapshots**, **HMM Parts Map**, **Alerts**, **Data Sources & Thresholds**, **Backup & Restore**, and **About**. The menu adapts to narrower windows. History reloads when opened, and the Check-in note remains in place when switching sections.
+Use the navigation menu to switch between **Dashboard**, **Check-in**, **History**, **Battery Storage**, **Lenovo Snapshots**, **HMM Parts Map**, **Alerts**, **Data Sources & Thresholds**, **Backup & Restore**, **Mode & Settings**, and **About**. Business mode also shows **Business workspace**, and labels Dashboard and History as Live telemetry and Telemetry history. The menu adapts to narrower windows. History reloads when opened, and the Check-in note remains in place when switching sections.
 
 ### Backup and restore
 
@@ -73,7 +89,7 @@ Battery Storage inspection history can be filtered by result and date, compared,
 
 ## Local data and limitations
 
-Check-ins, inspections, saved snapshots, and settings use `%LOCALAPPDATA%\PSUM\psum.sqlite3`. Exports and backups are saved to the location you select. Back up this database before moving data or restoring an older copy.
+Check-ins, inspections, saved snapshots, and settings use `%LOCALAPPDATA%\PSUM\psum.sqlite3`. Exports and backups are saved to the location you select. The mode preference is saved in `%LOCALAPPDATA%\PSUM\mode.txt`. Back up this database and the separate Business audit events before moving data or restoring an older copy.
 
 Hardware interrogation is read-only. The app records local observations and inspections; it does not change battery firmware or Lenovo charge thresholds. Cached Lenovo readings and retained registry profiles must remain distinguishable from live Windows telemetry. A capacity ratio, reference illustration, or inspection record does not certify a battery's physical safety.
 

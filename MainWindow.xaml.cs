@@ -28,26 +28,33 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        BusinessPage.SetOwner(this);
+        BusinessPage.RecordsChanged += (_, _) => UpdateAlerts();
+        BusinessPage.ReadingCaptured += ApplyDiagnostics;
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1200, 900));
         InitializeChassisImage();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "battery_paper_app_icon.ico"));
         InitializeStorageControls();
         InitializeOriginalFeatures();
-        AppNavigation.SelectedItem = DashboardNav;
+        InitializeMode();
         _refreshTimer = DispatcherQueue.CreateTimer();
         _refreshTimer.Interval = TimeSpan.FromSeconds(10);
         _refreshTimer.Tick += (_, _) => RefreshPowerStatus();
         _refreshTimer.Start();
-        Closed += (_, _) => _refreshTimer.Stop();
+        Closed += (_, _) => { _refreshTimer.Stop(); DiagnosticsLog.Info("App.Close"); };
         RefreshPowerStatus();
         _ = RefreshDiagnosticsAsync();
         _ = InitializeHistoryAsync();
-        _ = QueryLenovoAsync();
     }
 
     private void Navigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItem is not NavigationViewItem item) return;
         string section = item.Tag?.ToString() ?? "dashboard";
+        if (section == "business" && !_businessMode) { AppNavigation.SelectedItem = DashboardNav; return; }
+        ModePage.Visibility = section == "mode" ? Visibility.Visible : Visibility.Collapsed;
+        BusinessPage.Visibility = section == "business" ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsLog.Info("Navigation.Change", $"section={section}");
         DashboardPage.Visibility = section == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
         CheckInPage.Visibility = section == "checkin" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPage.Visibility = section == "history" ? Visibility.Visible : Visibility.Collapsed;
@@ -79,7 +86,24 @@ public sealed partial class MainWindow : Window
         SaveCheckInButton.IsEnabled = false;
         try
         {
+            DiagnosticsLog.Info("Telemetry.Capture.Start");
             var reading = await BatteryDiagnosticsProvider.ReadAsync();
+            DiagnosticsLog.Info("Telemetry.Capture.Complete", $"healthAvailable={reading.HealthPercent is not null}");
+            if (reading.Issue is not null) DiagnosticsLog.Warning("Telemetry.Capture.Unavailable", DiagnosticsLog.BatteryIssue(reading.Issue));
+            if (!string.IsNullOrWhiteSpace(reading.SourceWarning)) DiagnosticsLog.Warning("Telemetry.Capture.Partial", DiagnosticsLog.BatteryIssue(reading.SourceWarning));
+            ApplyDiagnostics(reading);
+            BusinessPage.AcceptTelemetry(reading);
+        }
+        finally
+        {
+            _diagnosticsReading = false;
+            SaveCheckInButton.IsEnabled = _checkInStorage is not null;
+        }
+    }
+
+    private void ApplyDiagnostics(BatteryDiagnostics reading)
+    {
+            reading = reading with { HealthLabel = ModePolicy.Classify(reading.HealthPercent, _businessMode) };
             _diagnostics = reading;
             HealthText.Text = reading.HealthPercent is double health
                 ? $"Health: {health:0.0}% — {reading.HealthLabel}" : "Health: Unknown";
@@ -96,17 +120,11 @@ public sealed partial class MainWindow : Window
             LiveRateText.Text = reading.RateMw is int rate ? $"Power flow: {rate / 1000.0:+0.00;-0.00} W" : "Power flow: Unknown";
             LiveRemainingText.Text = reading.RemainingCapacityMWh is uint remaining ? $"Remaining capacity: {remaining / 1000.0:0.00} Wh" : "Remaining capacity: Unknown";
             ReplacementAlert.IsOpen = reading.HealthLabel == "Critical";
-            DiagnosticsIssue.Message = reading.Issue ?? string.Empty;
-            DiagnosticsIssue.IsOpen = reading.Issue is not null;
+            DiagnosticsIssue.Message = reading.Issue ?? reading.SourceWarning ?? string.Empty;
+            DiagnosticsIssue.IsOpen = !string.IsNullOrWhiteSpace(DiagnosticsIssue.Message);
             UpdateCheckInSummary();
             UpdateSources();
             UpdateAlerts();
-        }
-        finally
-        {
-            _diagnosticsReading = false;
-            SaveCheckInButton.IsEnabled = _checkInStorage is not null;
-        }
     }
 
     private void RefreshPowerStatus()
@@ -191,9 +209,10 @@ public sealed partial class MainWindow : Window
             LoadThresholds();
             await ReloadSnapshotsAsync();
             LoadOriginalSettings();
+            await QueryLenovoAsync();
         }
         catch (Exception ex)
-        {
+        { DiagnosticsLog.Error("Interrogation.Failed", ex);
             CheckInMessage.Severity = InfoBarSeverity.Error;
             CheckInMessage.Title = "Check-in history unavailable";
             CheckInMessage.Message = ex.Message;
@@ -216,7 +235,7 @@ public sealed partial class MainWindow : Window
             HistoryRowsLoaded(rows);
         }
         catch (Exception ex)
-        {
+        { DiagnosticsLog.Error("Interrogation.Failed", ex);
             ShowHistoryError(ex);
         }
     }
@@ -246,7 +265,7 @@ public sealed partial class MainWindow : Window
             CheckInMessage.IsOpen = true;
         }
         catch (Exception ex)
-        {
+        { DiagnosticsLog.Error("Interrogation.Failed", ex);
             ShowCheckInError(ex);
         }
         finally
@@ -306,7 +325,7 @@ public sealed partial class MainWindow : Window
             HistoryMessage.IsOpen = false;
         }
         catch (ArgumentException ex)
-        {
+        { DiagnosticsLog.Error("Interrogation.Failed", ex);
             ShowHistoryError(ex);
         }
     }
@@ -350,7 +369,7 @@ public sealed partial class MainWindow : Window
             HistoryMessage.Message = record.EvidenceId;
             HistoryMessage.IsOpen = true;
         }
-        catch (Exception ex) { ShowHistoryError(ex); }
+        catch (Exception ex) { DiagnosticsLog.Error("Interrogation.Failed", ex); ShowHistoryError(ex); }
     }
 
     private async void ExportText_Click(object sender, RoutedEventArgs e)
@@ -382,7 +401,7 @@ public sealed partial class MainWindow : Window
             HistoryMessage.IsOpen = true;
         }
         catch (Exception ex)
-        {
+        { DiagnosticsLog.Error("Interrogation.Failed", ex);
             ShowHistoryError(ex);
         }
     }
@@ -414,7 +433,7 @@ public sealed partial class MainWindow : Window
             ShowDataMessage(InfoBarSeverity.Success, "Backup saved", result.Path);
         }
         catch (Exception ex)
-        {
+        { DiagnosticsLog.Error("Interrogation.Failed", ex);
             ShowDataMessage(InfoBarSeverity.Error, "Backup failed", ex.Message);
         }
         finally
@@ -438,7 +457,7 @@ public sealed partial class MainWindow : Window
             {
                 XamlRoot = DataPage.XamlRoot,
                 Title = "Restore PSUM database?",
-                Content = $"This will replace the current PSUM records with:\n{result.Path}\n\nA safety copy of the current database will be created first. Close the original Python PSUM app before continuing.",
+                Content = $"This will replace the shared Standard and Business telemetry database with:\n{result.Path}\n\nA safety copy will be created first. Close other PSUM windows and the original Python PSUM app before continuing. Business audit records are stored separately and are not restored here.",
                 PrimaryButtonText = "Restore",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Close
@@ -454,7 +473,7 @@ public sealed partial class MainWindow : Window
             ShowDataMessage(InfoBarSeverity.Success, "Database restored", $"Safety copy: {safety}");
         }
         catch (Exception ex)
-        {
+        { DiagnosticsLog.Error("Interrogation.Failed", ex);
             ShowDataMessage(InfoBarSeverity.Error, "Restore failed", ex.Message);
         }
         finally

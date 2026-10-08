@@ -90,9 +90,9 @@ public sealed partial class MainWindow
         {
             _lastKnownHealth = (health, _diagnostics.HealthLabel);
             if (_diagnostics.HealthLabel == "Critical") messages.Insert(0, $"CRITICAL BATTERY HEALTH {health:0.0}% / Arrange battery replacement.");
-            else if (_diagnostics.HealthLabel != "Good") messages.Insert(0, $"CURRENT BATTERY HEALTH {health:0.0}% / {_diagnostics.HealthLabel}.");
+            else if (health < 80) messages.Insert(0, $"CURRENT BATTERY HEALTH {health:0.0}% / {_diagnostics.HealthLabel}.");
         }
-        else if (_lastKnownHealth is { } last && last.label != "Good")
+        else if (_lastKnownHealth is { } last && last.percent < 80)
             messages.Insert(0, $"LAST KNOWN BATTERY HEALTH {last.percent:0.0}% / Current health reading unavailable.");
         foreach (var entry in _storageEntries.Where(entry => entry.Lifecycle == BatteryLifecycles.AttentionRequired))
             messages.Add($"{entry.Profile.ProfileId}: service attention required.");
@@ -102,6 +102,7 @@ public sealed partial class MainWindow
             if (change != "No significant change" && change != "No previous observation" && change != "Change unavailable")
                 messages.Add($"Saved Lenovo cache / {Label(snapshot)}: {change} (Vantage update time unknown)");
         }
+        if (_businessMode) messages.AddRange(BusinessPage.MaintenanceAlerts());
         AlertsText.Text = messages.Count == 0 ? "No current alerts. Saved data and firmware availability may be incomplete." : string.Join(Environment.NewLine + Environment.NewLine, messages);
     }
 

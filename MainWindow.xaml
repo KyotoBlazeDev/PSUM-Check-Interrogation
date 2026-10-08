@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Window x:Class="PSUM_Check_Interrogation_WinUI_3.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:local="using:PSUM_Check_Interrogation_WinUI_3"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="PSUM Check Interrogation">
+    Title="PSUM Check">
     <Window.SystemBackdrop><MicaBackdrop /></Window.SystemBackdrop>
-        <NavigationView x:Name="AppNavigation" PaneTitle="PSUM" Header="Dashboard"
+        <NavigationView x:Name="AppNavigation" PaneTitle="PSUM Standard" Header="Dashboard"
                     PaneDisplayMode="Auto" AlwaysShowHeader="False" IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="False" SelectionChanged="Navigation_SelectionChanged">
+                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsSettingsVisible="False" SelectionChanged="Navigation_SelectionChanged">
         <NavigationView.MenuItems>
-            <NavigationViewItem x:Name="DashboardNav" Content="Dashboard" Icon="Home" Tag="dashboard" />
+            <NavigationViewItem x:Name="BusinessNav" Content="Business workspace" Icon="Contact" Tag="business" Visibility="Collapsed" />
+            <NavigationViewItem x:Name="DashboardNav" Content="Live telemetry" Icon="Home" Tag="dashboard" />
             <NavigationViewItem x:Name="CheckInNav" Content="Check-in" Icon="Edit" Tag="checkin" />
-            <NavigationViewItem x:Name="HistoryNav" Content="History" Icon="Document" Tag="history" />
+            <NavigationViewItem x:Name="HistoryNav" Content="Telemetry history" Icon="Document" Tag="history" />
             <NavigationViewItem x:Name="StorageNav" Content="Battery Storage" Icon="Library" Tag="storage" />
             <NavigationViewItem x:Name="SnapshotsNav" Content="Lenovo Snapshots" Icon="Calendar" Tag="snapshots" />
             <NavigationViewItem x:Name="PartsNav" Content="HMM Parts Map" Icon="Map" Tag="parts" />
@@ -18,10 +20,25 @@
             <NavigationViewItem x:Name="SourcesNav" Content="Data Sources &amp; Thresholds" Icon="List" Tag="sources" />
         </NavigationView.MenuItems>
         <NavigationView.FooterMenuItems>
+            <NavigationViewItem x:Name="ModeNav" Content="Mode &amp; Settings" Icon="Setting" Tag="mode" />
             <NavigationViewItem x:Name="DataNav" Content="Backup &amp; Restore" Icon="Save" Tag="data" />
             <NavigationViewItem x:Name="AboutNav" Content="About" Icon="Help" Tag="about" />
         </NavigationView.FooterMenuItems>
         <Grid>
+            <ScrollViewer x:Name="ModePage" Visibility="Collapsed">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+                    <TextBlock Text="Mode &amp; Settings" FontSize="28" FontWeight="SemiBold" />
+                    <ComboBox x:Name="ModeSelector" Header="PSUM mode" Width="260" SelectionChanged="ModeSelector_SelectionChanged">
+                        <ComboBoxItem Content="Standard" />
+                        <ComboBoxItem Content="Business" />
+                    </ComboBox>
+                    <TextBlock Text="Standard provides personal battery telemetry, check-ins, storage inspections and Lenovo snapshots. Business adds asset tracking, physical observations, inspection schedules, replacement history and audit exports." TextWrapping="Wrap" />
+                    <TextBlock x:Name="ModePolicyText" TextWrapping="Wrap" />
+                    <TextBlock Text="Changing mode applies immediately and keeps your records. Both modes share the PSUM telemetry database. Business audit events are stored separately and retain their Business policy classifications." TextWrapping="Wrap" />
+                    <InfoBar x:Name="ModeMessage" IsOpen="False" Severity="Error" Title="Mode preference could not be saved" />
+                </StackPanel>
+            </ScrollViewer>
+            <local:BusinessWorkspace x:Name="BusinessPage" Visibility="Collapsed" />
             <ScrollViewer x:Name="DashboardPage">
                 <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
                     <TextBlock Text="Live battery status" FontSize="28" FontWeight="SemiBold" />
@@ -213,7 +230,7 @@
             <ScrollViewer x:Name="DataPage" Visibility="Collapsed">
                 <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
                     <TextBlock Text="Backup and restore" FontSize="28" FontWeight="SemiBold" />
-                    <TextBlock Text="Create a complete PSUM database backup before moving or replacing this PC. Restore validates the selected backup and saves a safety copy of the current database first." TextWrapping="Wrap" />
+                    <TextBlock Text="Back up the telemetry database before moving this PC. Business audit records are separate; export JSON from the Business workspace to preserve those records. Restore validates the selected backup and saves a safety copy of the current database first." TextWrapping="Wrap" />
                     <Button x:Name="BackupButton" Content="Create backup…" Click="Backup_Click" IsEnabled="False" HorizontalAlignment="Left" />
                     <Button x:Name="RestoreButton" Content="Restore from backup…" Click="Restore_Click" IsEnabled="False" HorizontalAlignment="Left" />
                     <InfoBar x:Name="DataMessage" IsOpen="False" Severity="Informational" />
@@ -222,10 +239,12 @@
 
             <ScrollViewer x:Name="AboutPage" Visibility="Collapsed">
                 <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
-                    <TextBlock Text="PSUM Check Interrogation" FontSize="28" FontWeight="SemiBold" />
+                    <TextBlock Text="PSUM Check" FontSize="28" FontWeight="SemiBold" />
                     <TextBlock Text="Unpackaged WinUI 3 edition. Run the EXE from its published folder without installing an MSIX." TextWrapping="Wrap" />
-                    <TextBlock Text="Dashboard reads live Windows battery status and WMI capacity diagnostics. Check-in and History use the original PSUM database at %LOCALAPPDATA%\PSUM\psum.sqlite3." TextWrapping="Wrap" />
+                    <TextBlock Text="Dashboard reads live Windows battery status and WMI capacity diagnostics. Both modes share Check-in and History at %LOCALAPPDATA%\PSUM\psum.sqlite3. Business audit events remain at %LOCALAPPDATA%\PSUM\BusinessEdition\events." TextWrapping="Wrap" />
                     <TextBlock Text="Lenovo snapshots are read from the Vantage WMI cache. Data Sources shows the origin and limits of each reading." TextWrapping="Wrap" />
+                    <TextBlock Text="Developed by KyotoBlazeDev • MIT License"/>
+                    <HyperlinkButton Content="Developer on GitHub" NavigateUri="https://github.com/KyotoBlazeDev"/>
                     <HyperlinkButton Content="Lenovo Battery Q&amp;A and storage guidance" NavigateUri="https://support.lenovo.com/solutions/ht509084"/>
                 </StackPanel>
             </ScrollViewer>

@@ -23,6 +23,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Verification\**\*.cs" />
+    <Page Remove="Verification\**\*.xaml" />
     <Manifest Include="$(ApplicationManifest)" />
     <Content Include="Assets\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

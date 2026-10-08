@@ -23,11 +23,12 @@ internal sealed class CheckInStorage
     private const int OpenReadOnly = 0x00000001;
     private const int OpenReadWriteCreate = 0x00000006;
     private readonly string _path;
+    internal static string DefaultPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PSUM", "psum.sqlite3");
 
     public CheckInStorage(string? path = null)
     {
-        _path = path ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PSUM", "psum.sqlite3");
+        _path = path ?? DefaultPath;
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         using var db = Open();
         Execute(db.Handle, """
