@@ -43,6 +43,24 @@ Use the navigation menu to switch between **Dashboard**, **Check-in**, **History
 
 **Lenovo Snapshots** queries the read-only `root/Lenovo:Lenovo_Battery` Vantage WMI cache once at launch and on explicit request. It saves one current row per battery per local day in the shared PSUM database, archiving a same-day replacement in `lenovo_battery_snapshot_revisions`. Failed queries leave saved data intact. The displayed timestamp is PSUM's query time; Vantage cache freshness is unknown. Access to this WMI class may be denied on some PCs.
 
+### Enable Lenovo battery WMI snapshots
+
+On supported ThinkPads with Commercial Vantage installed, enable **Write Battery Information to WMI** under:
+
+**Computer Configuration → Administrative Templates → Commercial Vantage → Device → Device Settings → Power**
+
+For local Group Policy setup:
+
+1. Copy `CommercialVantage.admx` from Lenovo's deployment package to `C:\Windows\PolicyDefinitions`.
+2. Copy its matching `en-US\CommercialVantage.adml` to `C:\Windows\PolicyDefinitions\en-US`.
+3. Open `gpedit.msc`, enable the policy above, and configure its daily, weekly, or monthly schedule.
+
+Domain administrators can use the Group Policy Central Store. Lenovo also documents registry deployment and Intune configuration, so templates are the Group Policy configuration route rather than a runtime dependency of PSUM.
+
+Commercial Vantage populates `ROOT\Lenovo:Lenovo_Battery` on the configured schedule. Disabled or unconfigured policy does not write battery information. Installing templates alone does not enable collection; PSUM's refresh queries the cache.
+
+See [Lenovo's configuration guide](https://docs.lenovocdrt.com/guides/lcv/configuration/#battery-information). PSUM does not enable this policy or install templates.
+
 ### Data sources and thresholds
 
 **Data Sources & Thresholds** labels Windows power API, Windows battery WMI, Lenovo WMI cache, and Lenovo registry cache readings. It compares current charge and charging state with user-entered start/stop percentages, saved in `app_settings`. The comparison does not read or change active firmware thresholds.
