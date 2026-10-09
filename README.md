@@ -58,6 +58,8 @@ Business audit history is append-only at application level, not tamper-proof. It
 
 Run `dotnet run --project Verification/Verification.csproj` to verify mode persistence, both capacity policies, battery parsing, physical hazard precedence, audit persistence/overwrite protection, export escaping, diagnostic retention, and telemetry backup/restore.
 
+Build and Release workflows run this verification suite before packaging the installer; a failed check stops packaging.
+
 ## Features
 
 ### Live battery diagnostics

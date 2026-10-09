@@ -70,6 +70,8 @@ jobs:
           }
           "version=$version", "tag=$tag", "prerelease=$prerelease", "commit=$commit" |
             Add-Content -LiteralPath $env:GITHUB_OUTPUT
+      - name: Verify unified modes and data safeguards
+        run: dotnet run --project Verification/Verification.csproj --configuration Release
       - name: Publish and compile installer
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
