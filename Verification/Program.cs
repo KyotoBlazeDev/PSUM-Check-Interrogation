@@ -91,4 +91,26 @@ string safetyPath = telemetry.RestoreDatabase(backupPath);
 Check(telemetry.Recent().Count == 1 && File.Exists(safetyPath) && new CheckInStorage(safetyPath).Recent().Count == 2, "Reused backup and restore preserve a safety copy");
 var storedInspection = new StoredBatteryInspection(0, "profile", DateTimeOffset.UtcNow, false, null, null, null, null, false, false, null, null, Guid.NewGuid().ToString());
 Check(StoredBatteryRules.NextCheck(storedInspection, BatteryLifecycles.Stored, storedInspection.CheckedAt) == storedInspection.CheckedAt.AddDays(7), "Reused stored-battery incomplete inspection schedules seven-day followup");
+Check(PowerStatusPolicy.State(null, null, false, null) == "Unknown" && PowerStatusPolicy.State(null, false, false, true) == "Unknown", "Failed or unavailable power readings are not absent batteries");
+Check(PowerStatusPolicy.State(null, true, false, true) == "No battery", "Only confirmed battery absence is saved as No battery");
+Check(PowerStatusPolicy.State(80, false, true, true) == "Charging" && PowerStatusPolicy.State(100, false, false, true) == "Full" && PowerStatusPolicy.State(80, false, false, false) == "Discharging", "Known power states are preserved");
+var now = DateTimeOffset.UtcNow;
+var offline = BusinessPolicy.InspectionReading(BatteryDiagnostics.Unknown("Access denied"), now, now, item.BatteryId, "");
+Check(offline.HealthPercent is null && offline.BatteryId == item.BatteryId && offline.Issue!.Contains("Access denied"), "Offline observation preserves identity and failure without reusing capacity");
+var offlineHazard = item with { Id = Guid.NewGuid(), Reading = offline };
+var offlineStore = new BusinessStore(Path.Combine(testRoot, "offline"));
+offlineStore.Append(offlineHazard);
+Check(offlineStore.Read().Single() == offlineHazard && BusinessPolicy.Alerts(offlineStore.Read(), "machine", now).Any(a => a.Contains("physical hazard")), "Physical hazards persist and alert without telemetry");
+var stale = BusinessPolicy.InspectionReading(reading, now.AddMinutes(-6), now, item.BatteryId, "");
+Check(stale.HealthPercent is null && stale.Issue is not null, "Stale capacity is not saved as current physical inspection telemetry");
+var labelOnly = BusinessPolicy.InspectionReading(null, default, now, null, "inventory-123");
+Check(labelOnly.BatteryId == BatteryIdentity.Create("label", "inventory", "inventory-123") && labelOnly.HealthPercent is null, "New offline battery identity has label provenance");
+try { BusinessPolicy.InspectionReading(null, default, now, null, ""); throw new Exception("Unidentified inspection accepted"); }
+catch (InvalidDataException) { Console.WriteLine("PASS: Unidentified offline inspection rejected"); }
+Check(BusinessPolicy.InspectionReading(reading, now, now, null, "") == reading, "Fresh valid telemetry remains attached to inspections");
+var otherAsset = item with { Id = Guid.NewGuid(), Asset = "other-asset", At = item.At.AddSeconds(3) };
+var afterReplacement = item with { Id = Guid.NewGuid(), At = item.At.AddSeconds(4), Swelling = "Absent" };
+var lifecycle = BusinessPolicy.Lifecycle(new[] { item, replacementEvent, otherAsset, afterReplacement }, "machine", item.Asset, item.BatteryId);
+Check(lifecycle.SequenceEqual(new[] { replacementEvent, afterReplacement }), "Workspace lifecycle excludes other assets and inspections before replacement");
+Check(!BusinessPolicy.Lifecycle(new[] { item }, "machine", "new-asset", item.BatteryId).Any(), "New asset cannot inherit another asset's inspection or trend");
 Console.WriteLine("All verification checks passed.");

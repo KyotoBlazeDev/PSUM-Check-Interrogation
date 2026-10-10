@@ -62,17 +62,18 @@ public sealed partial class BusinessWorkspace : UserControl
         dueTimer.Tick += (_, _) => Render();
         Loaded += (_, _) => dueTimer.Start();
         Unloaded += (_, _) => dueTimer.Stop();
+        Asset.TextChanged += (_, _) => Render();
     }
     private void Notify(string text, bool error = false) { Message.Message = text; Message.Severity = error ? InfoBarSeverity.Error : InfoBarSeverity.Success; Message.IsOpen = true; }
-    private BusinessEvent Create(string kind, DateTimeOffset? due = null) => new(Guid.NewGuid(), DateTimeOffset.UtcNow,
-        Environment.UserDomainName + "\\" + Environment.UserName, Environment.MachineName, Asset.Text.Trim(), reading!.BatteryId, kind, reading,
+    private BusinessEvent Create(string kind, DateTimeOffset? due = null, BatteryDiagnostics? observation = null) => new(Guid.NewGuid(), DateTimeOffset.UtcNow,
+        Environment.UserDomainName + "\\" + Environment.UserName, Environment.MachineName, Asset.Text.Trim(), (observation ?? reading)!.BatteryId, kind, observation ?? reading,
         kind == "Inspection" ? Swelling.SelectedItem?.ToString() : null, kind == "Inspection" ? Heat.SelectedItem?.ToString() : null,
         kind == "Inspection" ? Leakage.SelectedItem?.ToString() : null, kind == "Inspection" ? Odor.SelectedItem?.ToString() : null,
         kind == "Inspection" ? Visual.SelectedItem?.ToString() : null, Notes.Text.Trim(), due, Manufacturer.Text.Trim(), Model.Text.Trim(), Serial.Text.Trim(), Fru.Text.Trim());
-    private bool Ready()
+    private bool Ready(bool physicalOnly = false)
     {
         if (capturing) { Notify("Wait for the battery capture to finish.", true); return false; }
-        if (reading is null || reading.Issue is not null || DateTimeOffset.UtcNow - capturedAt > TimeSpan.FromMinutes(5)) { Notify("Capture a valid battery reading within five minutes before recording an event.", true); return false; }
+        if (!physicalOnly && (reading is null || reading.Issue is not null || DateTimeOffset.UtcNow - capturedAt > TimeSpan.FromMinutes(5))) { Notify("Capture a valid battery reading within five minutes before recording an event.", true); return false; }
         if (string.IsNullOrWhiteSpace(Asset.Text)) { Notify("Enter the asset tag.", true); return false; }
         return true;
     }
@@ -111,10 +112,19 @@ public sealed partial class BusinessWorkspace : UserControl
     }
     private void Inspection_Click(object sender, RoutedEventArgs e)
     {
-        if (!Ready()) return;
+        if (!Ready(physicalOnly: true)) return;
         if (new[] { Swelling, Heat, Leakage, Odor, Visual }.Any(c => c.SelectedIndex == 0)) { Notify("Complete all five physical observations.", true); return; }
         if (double.IsNaN(Interval.Value) || Interval.Value < 1 || Interval.Value > 365) { Notify("Choose an inspection interval between 1 and 365 days.", true); return; }
-        var item = Create("Inspection", DateTimeOffset.UtcNow.AddDays(Interval.Value));
+        BatteryDiagnostics observation;
+        try
+        {
+            var previous = events.LastOrDefault(e => e.Machine == Environment.MachineName && e.Asset == Asset.Text.Trim());
+            string? knownId = previous?.BatteryId;
+            if (!string.IsNullOrWhiteSpace(Serial.Text) && !string.Equals(previous?.Serial, Serial.Text.Trim(), StringComparison.OrdinalIgnoreCase)) knownId = null;
+            observation = BusinessPolicy.InspectionReading(reading, capturedAt, DateTimeOffset.UtcNow, knownId, Serial.Text);
+        }
+        catch (InvalidDataException ex) { Notify(ex.Message, true); return; }
+        var item = Create("Inspection", DateTimeOffset.UtcNow.AddDays(Interval.Value), observation);
         if (BusinessPolicy.Hazard(item)) item = item with { NextDue = DateTimeOffset.UtcNow };
         if (Save(item)) { ResetObservations(); Notes.Text = ""; }
     }
@@ -122,7 +132,7 @@ public sealed partial class BusinessWorkspace : UserControl
     {
         if (!Ready()) return;
         if (string.IsNullOrWhiteSpace(Serial.Text) || string.IsNullOrWhiteSpace(Notes.Text)) { Notify("Enter the new battery serial / inventory ID and replacement ticket or reason.", true); return; }
-        var previousSerial = events.LastOrDefault(e => e.Machine == Environment.MachineName && (e.Kind is "Inspection" or "Replacement") && !string.IsNullOrWhiteSpace(e.Serial))?.Serial;
+        var previousSerial = events.LastOrDefault(e => e.Machine == Environment.MachineName && e.Asset == Asset.Text.Trim() && (e.Kind is "Inspection" or "Replacement") && !string.IsNullOrWhiteSpace(e.Serial))?.Serial;
         if (string.Equals(previousSerial, Serial.Text.Trim(), StringComparison.OrdinalIgnoreCase)) { Notify("The replacement needs a different serial / inventory ID from the previous battery.", true); return; }
         if (Save(Create("Replacement")))
         {
@@ -134,10 +144,8 @@ public sealed partial class BusinessWorkspace : UserControl
     private void ResetObservations() { foreach (var box in new[] { Swelling, Heat, Leakage, Odor, Visual }) box.SelectedIndex = 0; }
     private void Render()
     {
-        var batteryId = reading is { Issue: null } ? reading.BatteryId : events.LastOrDefault(e => e.Machine == Environment.MachineName)?.BatteryId;
-        var current = events.Where(e => e.Machine == Environment.MachineName && e.BatteryId == batteryId).ToArray();
-        var replacement = current.LastOrDefault(e => e.Kind == "Replacement");
-        var active = current.Where(e => replacement is null || e.At >= replacement.At).ToArray();
+        var batteryId = reading is { Issue: null } ? reading.BatteryId : events.LastOrDefault(e => e.Machine == Environment.MachineName && e.Asset == Asset.Text.Trim())?.BatteryId;
+        var active = BusinessPolicy.Lifecycle(events, Environment.MachineName, Asset.Text.Trim(), batteryId);
         var check = active.LastOrDefault(e => e.Kind == "Inspection");
         var r = reading ?? active.LastOrDefault()?.Reading;
         string F(object? value, string unit = "") => value is null ? "Unavailable" : value + unit;

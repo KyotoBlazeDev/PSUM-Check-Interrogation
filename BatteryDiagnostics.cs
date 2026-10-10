@@ -28,6 +28,14 @@ internal sealed record BatteryDiagnostics(
         new(null, null, "Unknown", null, null, null, issue, BatteryIdentity.Create(null, null, null));
 }
 
+internal static class PowerStatusPolicy
+{
+    public static string State(int? charge, bool? noBattery, bool charging, bool? ac) =>
+        noBattery == true ? "No battery" : noBattery is null || charge is null ? "Unknown"
+        : charging ? "Charging" : ac == true ? charge == 100 ? "Full" : "Idle"
+        : ac == false ? "Discharging" : "Unknown";
+}
+
 internal static class BatteryIdentity
 {
     public static string Create(string? manufacturer, string? name, string? deviceId)

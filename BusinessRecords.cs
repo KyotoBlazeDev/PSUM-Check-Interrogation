@@ -14,14 +14,28 @@ internal sealed record BusinessEvent(Guid Id, DateTimeOffset At, string Operator
 
 internal static class BusinessPolicy
 {
+    public static BusinessEvent[] Lifecycle(IEnumerable<BusinessEvent> records, string machine, string asset, string? batteryId)
+    {
+        var current = records.Where(e => e.Machine == machine && e.Asset == asset && e.BatteryId == batteryId).OrderBy(e => e.At).ThenBy(e => e.Id).ToArray();
+        int replacement = Array.FindLastIndex(current, e => e.Kind == "Replacement");
+        return replacement < 0 ? current : current.Skip(replacement).ToArray();
+    }
+
+    public static BatteryDiagnostics InspectionReading(BatteryDiagnostics? sample, DateTimeOffset capturedAt, DateTimeOffset now, string? knownId, string serial)
+    {
+        if (sample is { Issue: null } && now - capturedAt <= TimeSpan.FromMinutes(5)) return sample;
+        if (string.IsNullOrWhiteSpace(knownId) && string.IsNullOrWhiteSpace(serial))
+            throw new InvalidDataException("Enter the battery serial / inventory ID to identify an inspection without telemetry.");
+        return BatteryDiagnostics.Unknown("Physical observation only; current telemetry unavailable. " + (sample?.Issue ?? "No recent valid capture.")) with
+        { BatteryId = knownId ?? BatteryIdentity.Create("label", "inventory", serial.Trim()), Status = "Unavailable" };
+    }
+
     public static IReadOnlyList<string> Alerts(IEnumerable<BusinessEvent> records, string machine, DateTimeOffset now)
     {
         var result = new List<string>();
         foreach (var group in records.Where(e => e.Machine == machine && !string.IsNullOrWhiteSpace(e.Asset)).GroupBy(e => (e.Asset, e.BatteryId)))
         {
-            var ordered = group.OrderBy(e => e.At).ToArray();
-            var replacement = ordered.LastOrDefault(e => e.Kind == "Replacement");
-            var active = ordered.Where(e => replacement is null || e.At >= replacement.At).ToArray();
+            var active = Lifecycle(group, machine, group.Key.Asset, group.Key.BatteryId);
             var inspection = active.LastOrDefault(e => e.Kind == "Inspection");
             if (inspection is not null && Hazard(inspection)) result.Add($"{group.Key.Asset}: physical hazard reported. {Action(inspection, null)}");
             if (inspection?.NextDue is not DateTimeOffset due) result.Add($"{group.Key.Asset}: physical inspection due; none completed for this lifecycle.");

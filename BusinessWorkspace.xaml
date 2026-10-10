@@ -13,7 +13,7 @@
   <TextBlock Text="Record identifiers from the battery label or approved asset inventory. Do not open a sealed battery." TextWrapping="Wrap" />
   <TextBox x:Name="Asset" Header="Asset tag" MaxLength="128" /><TextBox x:Name="Manufacturer" Header="Battery manufacturer (label)" MaxLength="128" /><TextBox x:Name="Model" Header="Battery model (label)" MaxLength="128" /><TextBox x:Name="Serial" Header="Battery serial / inventory ID (label)" MaxLength="128" /><TextBox x:Name="Fru" Header="FRU / part number (label)" MaxLength="128" />
   <TextBlock Text="Physical inspection" FontSize="22" FontWeight="SemiBold" />
-  <TextBlock Text="Unknown means not checked. All five observations are required to complete an inspection." TextWrapping="Wrap" />
+  <TextBlock Text="Unknown means not checked. All five observations are required to complete an inspection. Physical observations can be saved without telemetry; enter a battery serial / inventory ID when no previous asset record identifies the battery. Unavailable telemetry is recorded explicitly." TextWrapping="Wrap" />
   <ComboBox x:Name="Swelling" Header="Swelling" /><ComboBox x:Name="Heat" Header="Unusual heat" /><ComboBox x:Name="Leakage" Header="Leakage" /><ComboBox x:Name="Odor" Header="Unusual odor" /><ComboBox x:Name="Visual" Header="Visual condition" />
   <TextBox x:Name="Notes" Header="Evidence / service ticket / notes" AcceptsReturn="True" MaxLength="4000" />
   <NumberBox x:Name="Interval" Header="Next inspection in days" Value="90" Minimum="1" Maximum="365" SpinButtonPlacementMode="Inline" />

@@ -58,6 +58,8 @@ Business audit history is append-only at application level, not tamper-proof. It
 
 Run `dotnet run --project Verification/Verification.csproj` to verify mode persistence, both capacity policies, battery parsing, physical hazard precedence, audit persistence/overwrite protection, export escaping, diagnostic retention, and telemetry backup/restore.
 
+Business physical observations can be recorded when telemetry is unavailable or stale. These records retain the failure reason and leave capacity measurements unavailable; a previous asset identity or entered battery serial / inventory ID is required. Recommendations, due dates, and trends are scoped to the entered asset and battery lifecycle. Check-ins distinguish unavailable power status (`Unknown`) from confirmed battery absence (`No battery`).
+
 Build and Release workflows run this verification suite before packaging the installer; a failed check stops packaging.
 
 ## Features

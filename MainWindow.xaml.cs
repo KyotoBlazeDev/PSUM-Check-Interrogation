@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     private int? _chargePercent;
     private bool? _acConnected;
     private bool _charging;
+    private bool? _noBattery;
     private bool? _batterySaver;
     private IReadOnlyList<BatteryCheckIn> _allHistory = [];
     private IReadOnlyList<BatteryCheckIn> _shownHistory = [];
@@ -132,6 +133,7 @@ public sealed partial class MainWindow : Window
         if (!GetSystemPowerStatus(out var status))
         {
             _chargePercent = null;
+            _noBattery = null;
             _acConnected = null;
             _charging = false;
             _batterySaver = null;
@@ -150,11 +152,12 @@ public sealed partial class MainWindow : Window
         }
 
         ReadError.IsOpen = false;
-        bool noBattery = (status.BatteryFlag & 128) != 0;
+        _noBattery = status.BatteryFlag == 255 ? null : (status.BatteryFlag & 128) != 0;
+        bool noBattery = _noBattery == true;
         bool chargeKnown = !noBattery && status.BatteryLifePercent <= 100;
         _chargePercent = chargeKnown ? status.BatteryLifePercent : null;
         _acConnected = status.ACLineStatus switch { 0 => false, 1 => true, _ => null };
-        _charging = !noBattery && (status.BatteryFlag & 8) != 0;
+        _charging = _noBattery == false && (status.BatteryFlag & 8) != 0;
         _batterySaver = status.SystemStatusFlag switch { 0 => false, 1 => true, _ => null };
         CriticalChargeAlert.IsOpen = _chargePercent is int low && low <= 5;
         CriticalChargeAlert.Message = _acConnected == true ? "Keep the charger connected." : "Connect the charger and save your work.";
@@ -168,7 +171,7 @@ public sealed partial class MainWindow : Window
             1 => "Power source: AC adapter",
             _ => "Power source: Unknown"
         };
-        BatteryText.Text = noBattery ? "Battery state: No battery reported" :
+        BatteryText.Text = _noBattery is null ? "Battery state: Unknown" : noBattery ? "Battery state: No battery reported" :
             (status.BatteryFlag & 8) != 0 ? "Battery state: Charging" :
             (status.BatteryFlag & 4) != 0 ? "Battery state: Critical charge" :
             (status.BatteryFlag & 2) != 0 ? "Battery state: Low charge" :
@@ -276,11 +279,7 @@ public sealed partial class MainWindow : Window
 
     private string CheckInState()
     {
-        if (_chargePercent is null) return "No battery";
-        if (_charging) return "Charging";
-        if (_acConnected == true && _chargePercent == 100) return "Full";
-        if (_acConnected == true) return "Idle";
-        return _acConnected == false ? "Discharging" : "Unknown";
+        return PowerStatusPolicy.State(_chargePercent, _noBattery, _charging, _acConnected);
     }
 
     private void HistoryRowsLoaded(IReadOnlyList<BatteryCheckIn> rows)
