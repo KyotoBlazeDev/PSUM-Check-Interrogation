@@ -12,10 +12,14 @@ public sealed partial class MainWindow
 
     private void InitializeMode()
     {
+        ModePreferenceText.Text = "Preference loaded for this Windows account. First launch defaults to Standard.";
         try { _businessMode = _modeSettings.Load(); }
         catch (Exception ex)
         {
             DiagnosticsLog.Error("Mode.Load", ex);
+            ModePreferenceText.Text = "Using the Standard fallback. Select a mode to save a new preference.";
+            ModeMessage.Severity = InfoBarSeverity.Warning;
+            ModeMessage.Title = "Saved mode could not be read";
             ModeMessage.Message = "Using Standard mode because the saved preference could not be read. " + ex.Message;
             ModeMessage.IsOpen = true;
         }
@@ -33,8 +37,12 @@ public sealed partial class MainWindow
         {
             _modeSettings.Save(business);
             _businessMode = business;
-            ModeMessage.IsOpen = false;
             ApplyMode();
+            ModePreferenceText.Text = "Preference saved for this Windows account and future launches.";
+            ModeMessage.Severity = InfoBarSeverity.Success;
+            ModeMessage.Title = "Mode saved";
+            ModeMessage.Message = $"{(_businessMode ? "Business" : "Standard")} mode is active.";
+            ModeMessage.IsOpen = true;
         }
         catch (Exception ex)
         {
@@ -42,6 +50,8 @@ public sealed partial class MainWindow
             _modeReady = false;
             ModeSelector.SelectedIndex = _businessMode ? 1 : 0;
             _modeReady = true;
+            ModeMessage.Severity = InfoBarSeverity.Error;
+            ModeMessage.Title = "Mode preference could not be saved";
             ModeMessage.Message = ex.Message;
             ModeMessage.IsOpen = true;
         }
@@ -49,6 +59,7 @@ public sealed partial class MainWindow
 
     private void ApplyMode()
     {
+        ActiveModeText.Text = _businessMode ? "Active mode: Business" : "Active mode: Standard";
         Title = _businessMode ? "PSUM Check — Business" : "PSUM Check — Standard";
         AppNavigation.PaneTitle = _businessMode ? "PSUM Business" : "PSUM Standard";
         BusinessNav.Visibility = _businessMode ? Visibility.Visible : Visibility.Collapsed;
@@ -61,4 +72,6 @@ public sealed partial class MainWindow
         _lastKnownHealth = null;
         ApplyDiagnostics(_diagnostics);
     }
+
+    private void ModeBackup_Click(object sender, RoutedEventArgs e) => AppNavigation.SelectedItem = DataNav;
 }

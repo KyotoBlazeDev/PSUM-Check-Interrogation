@@ -25,17 +25,48 @@
             <NavigationViewItem x:Name="AboutNav" Content="About" Icon="Help" Tag="about" />
         </NavigationView.FooterMenuItems>
         <Grid>
-            <ScrollViewer x:Name="ModePage" Visibility="Collapsed">
-                <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
+            <ScrollViewer x:Name="ModePage" Visibility="Collapsed" HorizontalContentAlignment="Stretch" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Stretch">
                     <TextBlock Text="Mode &amp; Settings" FontSize="28" FontWeight="SemiBold" />
-                    <ComboBox x:Name="ModeSelector" Header="PSUM mode" Width="260" SelectionChanged="ModeSelector_SelectionChanged">
-                        <ComboBoxItem Content="Standard" />
-                        <ComboBoxItem Content="Business" />
-                    </ComboBox>
-                    <TextBlock Text="Standard provides personal battery telemetry, check-ins, storage inspections and Lenovo snapshots. Business adds asset tracking, physical observations, inspection schedules, replacement history and audit exports." TextWrapping="Wrap" />
-                    <TextBlock x:Name="ModePolicyText" TextWrapping="Wrap" />
-                    <TextBlock Text="Changing mode applies immediately and keeps your records. Both modes share the PSUM telemetry database. Business audit events are stored separately and retain their Business policy classifications." TextWrapping="Wrap" />
-                    <InfoBar x:Name="ModeMessage" IsOpen="False" Severity="Error" Title="Mode preference could not be saved" />
+                    <TextBlock Text="Choose the workflow and capacity policy for this Windows account." TextWrapping="Wrap" />
+                    <InfoBar x:Name="ModeMessage" IsOpen="False" IsClosable="True" />
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock x:Name="ActiveModeText" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <ComboBox x:Name="ModeSelector" Header="Choose mode" HorizontalAlignment="Stretch" SelectionChanged="ModeSelector_SelectionChanged" AutomationProperties.Name="PSUM mode">
+                                <ComboBoxItem Content="Standard" />
+                                <ComboBoxItem Content="Business" />
+                            </ComboBox>
+                            <TextBlock x:Name="ModePreferenceText" TextWrapping="Wrap" />
+                            <TextBlock Text="Changes apply immediately. Your saved records and unfinished form entries remain in place." TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="What each mode provides" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="Available in both modes" FontWeight="SemiBold" />
+                            <TextBlock Text="Live telemetry, check-ins, history, stored-battery inspections, Lenovo snapshots, alerts and SQLite backup / restore." TextWrapping="Wrap" />
+                            <TextBlock Text="Standard · Personal battery monitoring" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="Uses the Standard capacity policy with the Dashboard and History navigation labels." TextWrapping="Wrap" />
+                            <TextBlock Text="Business · Battery maintenance" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="Adds the Business workspace: asset tags, label provenance, physical observations, inspection schedules, replacement records and CSV / JSON audit exports. Dashboard and History become Live telemetry and Telemetry history." TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Active capacity policy" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="ModePolicyText" TextWrapping="Wrap" />
+                            <TextBlock Text="Capacity health is derived from reported full-charge and design capacities. Missing readings remain Unknown. Business physical hazards take precedence over capacity advice; Business audit classifications always use Business policy." TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Records &amp; backups" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="Both modes share the PSUM telemetry database. Changing mode keeps the same history and does not merge the legacy Business telemetry database." TextWrapping="Wrap" />
+                            <TextBlock Text="SQLite backup covers telemetry, settings, stored-battery inspections and saved snapshots. Business audit events are stored separately: export JSON from the Business workspace or back up its events folder as well." TextWrapping="Wrap" />
+                            <Button Content="Open Backup &amp; Restore" Click="ModeBackup_Click" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
             <local:BusinessWorkspace x:Name="BusinessPage" Visibility="Collapsed" />
