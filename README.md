@@ -108,6 +108,13 @@ See [Lenovo's configuration guide](https://docs.lenovocdrt.com/guides/lcv/config
 
 ### Data sources and thresholds
 
+The development source provides separate start and stop comparison sliders with whole-percent steps, live preview labels, and an explicit **Save comparison** action. Start remains below stop. Saved values reuse PSUM's `threshold_start` and `threshold_stop` settings.
+
+The slider presentation was informed by the [KyotoBlazeDev Lenovo Legion Toolkit fork's charge-threshold control](https://github.com/KyotoBlazeDev/LenovoLegionToolkit/blob/49e8b4f35af5724d3d36f11559fe322d3c37c574/LenovoLegionToolkit.WPF/Controls/Dashboard/ChargeThresholdControl.xaml). PSUM uses its own WinUI implementation; no LLT source, assets, or driver-control code is included.
+
+> [!IMPORTANT]
+> **Threshold disclaimer:** PSUM's sliders save diagnostic comparison values, not active charging limits. They do not write Lenovo registry settings, invoke a charging driver, or synchronize settings with Vantage or LLT. Matching app displays or cached registry values does not prove firmware enforcement. PSUM is an independent project, is not affiliated with or endorsed by Lenovo or the LLT maintainers, and is provided without warranty under the [MIT license](LICENSE). Battery readings and compatibility depend on the specific hardware and firmware; capacity estimates do not certify physical safety.
+
 **Data Sources & Thresholds** labels Windows power API, Windows battery WMI, Lenovo WMI cache, and Lenovo registry cache readings. It compares current charge and charging state with user-entered start/stop percentages, saved in `app_settings`. The comparison does not read or change active firmware thresholds.
 
 The extended Windows WMI read also shows remaining capacity, accepted and reported voltage, design voltage, temperature, and charge/discharge rate when firmware exposes them. Implausible reported voltage is retained as reported evidence but not accepted as a valid live voltage.

@@ -263,11 +263,39 @@ public sealed partial class MainWindow
         return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 
+    private bool _thresholdsLoading = true;
+
+    private void ThresholdSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_thresholdsLoading) return;
+        _thresholdsLoading = true;
+        double start = StartThreshold.Value, stop = StopThreshold.Value;
+        if (ReferenceEquals(sender, StartThreshold)) start = Math.Min(Math.Round(start), stop - 1);
+        else stop = Math.Max(Math.Round(stop), start + 1);
+        // Apply after the Slider finishes its own value change so the thumb and label agree.
+        if (!DispatcherQueue.TryEnqueue(() =>
+        {
+            StartThreshold.Value = start;
+            StopThreshold.Value = stop;
+            _thresholdsLoading = false;
+            ThresholdMessage.Severity = InfoBarSeverity.Informational;
+            ThresholdMessage.Message = "Preview updated. Select Save comparison to keep these values in PSUM. Firmware settings are unchanged.";
+            ThresholdMessage.IsOpen = true;
+            UpdateSources();
+        })) _thresholdsLoading = false;
+    }
+
     private void LoadThresholds()
     {
         if (_checkInStorage is null) return;
-        if (int.TryParse(_checkInStorage.GetSetting("threshold_start"), out int start)) StartThreshold.Value = start;
-        if (int.TryParse(_checkInStorage.GetSetting("threshold_stop"), out int stop)) StopThreshold.Value = stop;
+        _thresholdsLoading = true;
+        if (int.TryParse(_checkInStorage.GetSetting("threshold_start"), out int start) &&
+            int.TryParse(_checkInStorage.GetSetting("threshold_stop"), out int stop) && start >= 0 && start < stop && stop <= 100)
+        {
+            StartThreshold.Value = start;
+            StopThreshold.Value = stop;
+        }
+        _thresholdsLoading = false;
         UpdateSources();
     }
 
@@ -328,6 +356,8 @@ public sealed partial class MainWindow
                 : "\nCached threshold: Unknown — Lenovo registry profile unavailable");
         int start = double.IsNaN(StartThreshold.Value) ? 40 : (int)StartThreshold.Value;
         int stop = double.IsNaN(StopThreshold.Value) ? 80 : (int)StopThreshold.Value;
+        StartThresholdLabel.Text = $"Start comparison: {start}%";
+        StopThresholdLabel.Text = $"Stop comparison: {stop}%";
         ThresholdResult.Text = ThresholdDiagnostic.Evaluate(_chargePercent, _acConnected, _charging, start, stop);
         DashboardThresholdText.Text = $"Diagnostic threshold comparison ({start}% start / {stop}% stop): {ThresholdResult.Text}";
     }

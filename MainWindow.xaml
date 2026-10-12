@@ -252,7 +252,17 @@
                     <TextBlock x:Name="SourceRows" Text="Reading sources…" TextWrapping="Wrap"/>
                     <TextBlock Text="Compare current behavior with entered thresholds" FontSize="22" FontWeight="SemiBold"/>
                     <TextBlock Text="These values are for diagnosis only. PSUM does not read or change active firmware charging thresholds." TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal" Spacing="12"><NumberBox x:Name="StartThreshold" Header="Start charging (%)" Width="170" Minimum="0" Maximum="99" Value="40"/><NumberBox x:Name="StopThreshold" Header="Stop charging (%)" Width="170" Minimum="1" Maximum="100" Value="80"/><Button Content="Save comparison" Click="SaveThresholds_Click" VerticalAlignment="Bottom"/></StackPanel>
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Charge threshold comparison" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="StartThresholdLabel" Text="Start comparison: 40%" />
+                            <Slider x:Name="StartThreshold" Minimum="0" Maximum="99" Value="40" StepFrequency="1" TickFrequency="10" ValueChanged="ThresholdSlider_ValueChanged" AutomationProperties.Name="Start charge comparison percentage" />
+                            <TextBlock x:Name="StopThresholdLabel" Text="Stop comparison: 80%" />
+                            <Slider x:Name="StopThreshold" Minimum="1" Maximum="100" Value="80" StepFrequency="1" TickFrequency="10" ValueChanged="ThresholdSlider_ValueChanged" AutomationProperties.Name="Stop charge comparison percentage" />
+                            <TextBlock Text="Preview only until you save. Start must be below stop. Save comparison stores these values in PSUM; it does not apply charging limits to your battery." TextWrapping="Wrap" />
+                            <Button Content="Save comparison" Click="SaveThresholds_Click" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
                     <InfoBar x:Name="ThresholdMessage" IsOpen="False" Severity="Informational"/>
                     <TextBlock x:Name="ThresholdResult" TextWrapping="Wrap"/>
                 </StackPanel>

@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _thresholdsLoading = false;
         BusinessPage.SetOwner(this);
         BusinessPage.RecordsChanged += (_, _) => UpdateAlerts();
         BusinessPage.ReadingCaptured += ApplyDiagnostics;
