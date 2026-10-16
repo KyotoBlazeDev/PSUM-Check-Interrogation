@@ -1,8 +1,9 @@
-<UserControl x:Class="PSUM_Check_Interrogation_WinUI_3.BusinessWorkspace" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+<UserControl x:Class="PSUM_Check_Interrogation_WinUI_3.BusinessWorkspace" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:PSUM_Check_Interrogation_WinUI_3" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
 
  <ScrollViewer HorizontalContentAlignment="Stretch" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"><Grid HorizontalAlignment="Stretch"><StackPanel Padding="24" Spacing="16" MaxWidth="1100" HorizontalAlignment="Left">
   <TextBlock Text="PSUM Check" FontSize="32" FontWeight="SemiBold" />
   <TextBlock Text="BUSINESS MODE • Battery maintenance workspace" FontSize="16" TextWrapping="Wrap" />
+  <local:SystemFamilySign />
   <InfoBar x:Name="Message" IsOpen="False" IsClosable="True" />
   <StackPanel Orientation="Horizontal" Spacing="12"><Button x:Name="RefreshButton" Content="Capture battery reading" Click="Refresh_Click" /><Button Content="Export JSON" Click="Json_Click" /><Button Content="Export CSV" Click="Csv_Click" /></StackPanel>
   <TextBlock x:Name="Dashboard" FontSize="18" TextWrapping="Wrap" />

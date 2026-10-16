@@ -1,0 +1,23 @@
+<UserControl
+    x:Class="PSUM_Check_Interrogation_WinUI_3.SystemFamilySign"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    HorizontalContentAlignment="Stretch">
+    <Border Background="#080C0B" BorderBrush="#424A46" BorderThickness="2" CornerRadius="8" Padding="16">
+        <StackPanel Spacing="12">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Border Background="#A5D94C" CornerRadius="3" Padding="12,6">
+                    <TextBlock Text="PC" Foreground="#10180A" FontSize="20" FontWeight="Bold" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                    <TextBlock Text="SYSTEM FAMILY" Foreground="#E9EEE8" FontSize="16" FontWeight="SemiBold" CharacterSpacing="140" />
+                    <TextBlock Text="PSUM · Device identification" Foreground="#B3C1B8" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+            <Canvas x:Name="LedPanel" Height="40" HorizontalAlignment="Stretch" SizeChanged="LedPanel_SizeChanged" IsHitTestVisible="False" />
+            <TextBlock x:Name="FamilyText" Foreground="#FFD58B" FontSize="16" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            <TextBlock x:Name="SourceText" Foreground="#B3C1B8" FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

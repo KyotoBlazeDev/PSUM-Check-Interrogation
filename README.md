@@ -66,6 +66,8 @@ Build and Release workflows run this verification suite before packaging the ins
 
 ### Live battery diagnostics
 
+The development Dashboard and Business workspace include a railway-inspired **System Family** sign. It reads `HKLM\HARDWARE\DESCRIPTION\System\BIOS: SystemFamily` without modifying it, shows the reported name in original LED-dot lettering and selectable plain text, and displays `Unavailable` when the value cannot be read. Long names wrap with the available width. The dark destination-board layout and colored identification block are an original adaptation informed by [JR East's E235 full-color destination indicators](https://www.jreast.co.jp/e/data/procurement/pdf/20170227_presentation_6th-dialogue.pdf) (page 12); no railway logos, photos, or fonts are included, and no JR East affiliation is implied.
+
 The current window reads charge percentage, AC state, battery state, and Windows' remaining-time estimate through `GetSystemPowerStatus`. It refreshes those values at a selectable 10–300 second interval. On launch and manual refresh, it also queries Windows battery WMI for design capacity, full-charge capacity, cycle count, voltage, temperature, power flow, and remaining capacity. Capacity health and wear follow the selected mode policy: the replacement alert opens below 30% in Standard mode and below 50% in Business mode. Unsupported firmware values remain `Unknown`.
 
 ### Check-ins and evidence

@@ -74,6 +74,7 @@
                 <StackPanel Padding="24" Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
                     <TextBlock Text="Live battery status" FontSize="28" FontWeight="SemiBold" />
                     <TextBlock Text="Current values from the Windows power API and battery WMI." TextWrapping="Wrap" />
+                    <local:SystemFamilySign />
                     <Border x:Name="LiveStatusCard" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">
                         <StackPanel Spacing="12">
                             <TextBlock x:Name="ChargeText" Text="Charge: Reading…" FontSize="24" FontWeight="SemiBold" />
