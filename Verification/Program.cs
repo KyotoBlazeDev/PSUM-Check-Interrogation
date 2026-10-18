@@ -51,6 +51,32 @@ var zero = Parse("{\"Dynamic\":[{\"RemainingCapacity\":0,\"Discharging\":true,\"
 Check(zero.RemainingCapacityMWh == 0 && zero.RateMw == -200 && zero.Status == "Discharging", "Empty capacity preserved and discharge rate uses active state");
 Check(Parse("{\"Dynamic\":[{}]}").Status == "Unavailable", "Missing status flags are not presented as idle");
 Check(reading.HealthLabel == BusinessPolicy.Classify(reading.HealthPercent), "Export and dashboard classifications agree");
+foreach (bool business in new[] { false, true })
+{
+    var boundaries = business
+        ? new[] { (80d, "Healthy", "Watch"), (70d, "Watch", "Degraded"), (50d, "Degraded", "Critical") }
+        : new[] { (80d, "Good", "Service recommended"), (60d, "Service recommended", "Poor"), (30d, "Poor", "Critical") };
+    foreach (var (boundary, at, below) in boundaries)
+    {
+        Check(ModePolicy.Classify(Math.BitDecrement(boundary), business) == below &&
+              ModePolicy.Classify(boundary, business) == at &&
+              ModePolicy.Classify(Math.BitIncrement(boundary), business) == at,
+              $"{(business ? "Business" : "Standard")} exact boundary {boundary}%");
+        uint fullCapacity = (uint)(boundary * 1000 - 40);
+        var nearBoundary = Parse($$"""{"Static":[{"InstanceName":"A","DesignedCapacity":100000}],"Full":[{"InstanceName":"A","FullChargedCapacity":{{fullCapacity}}}]}""");
+        Check(nearBoundary.HealthPercent < boundary && ModePolicy.Classify(nearBoundary.HealthPercent, business) == below &&
+              nearBoundary.HealthLabel == BusinessPolicy.Classify(nearBoundary.HealthPercent),
+              $"Capacity acquisition preserves classification below {boundary}% in {(business ? "Business" : "Standard")}");
+    }
+    foreach (double? invalid in new double?[] { null, -1, double.NaN, double.PositiveInfinity, double.NegativeInfinity })
+        Check(ModePolicy.Classify(invalid, business) == "Unknown", $"Invalid health {invalid} stays Unknown (business={business})");
+    Check(ModePolicy.Classify(0, business) == "Critical", $"Valid zero health is Critical (business={business})");
+}
+foreach (string capacity in new[] { "0", "-1", "4294967295", "null" })
+{
+    var invalidCapacity = Parse($$"""{"Static":[{"DesignedCapacity":{{capacity}}}],"Full":[{"FullChargedCapacity":40000}]}""");
+    Check(invalidCapacity.HealthPercent is null && invalidCapacity.HealthLabel == "Unknown", $"Invalid design capacity {capacity} stays Unknown");
+}
 Check(Parse("{\"QueryIssues\":[\"Access is denied\"]}").Issue!.Contains("could not be read"), "Denied WMI access is not mislabeled as absent hardware");
 Check(Parse("{\"Win32\":[{}],\"QueryIssues\":[\"Optional temperature unavailable\"]}").SourceWarning!.Contains("temperature"), "Partial data warnings are preserved");
 if (args.Contains("--hardware")) {

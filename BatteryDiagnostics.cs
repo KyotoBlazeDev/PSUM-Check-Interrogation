@@ -160,9 +160,9 @@ internal static class BatteryDiagnosticsProvider
             return new(null, null, "Unknown", design, full, cycles, null, batteryId, remaining, voltage, reportedVoltage, designVoltage, temperature, rate, voltageWarning, StatusText(dynamic)) { SourceWarning = sourceWarning };
 
         double percent = Math.Clamp((double)full.Value / design.Value * 100, 0, 100);
-        double rounded = Math.Round(percent, 1);
-        string label = BusinessPolicy.Classify(rounded);
-        return new(rounded, Math.Round(100 - percent, 1), label, design, full, cycles, null, batteryId, remaining, voltage, reportedVoltage, designVoltage, temperature, rate, voltageWarning, StatusText(dynamic)) { SourceWarning = sourceWarning };
+        // Round only for presentation so readings below a policy boundary stay below it.
+        string label = BusinessPolicy.Classify(percent);
+        return new(percent, Math.Round(100 - percent, 1), label, design, full, cycles, null, batteryId, remaining, voltage, reportedVoltage, designVoltage, temperature, rate, voltageWarning, StatusText(dynamic)) { SourceWarning = sourceWarning };
     }
 
     private static string StatusText(JsonElement row) => row.ValueKind != JsonValueKind.Object || !new[] { "Charging", "Discharging", "PowerOnline" }.All(p => row.TryGetProperty(p, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False) ? "Unavailable" : new[] { "Charging", "Discharging", "PowerOnline" }.Where(p => row.GetProperty(p).ValueKind == JsonValueKind.True).DefaultIfEmpty("Idle / offline").Aggregate((a, b) => a + ", " + b);
