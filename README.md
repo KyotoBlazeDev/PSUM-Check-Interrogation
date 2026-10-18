@@ -186,9 +186,25 @@ Authenticode signing and pre-signing malware scanning are **planned for the 2027
 
 ## Third-party names and battery documents
 
-Lenovo and ThinkPad names and marks belong to Lenovo. SIMPLO and SMP names and marks belong to SIMPLO TECHNOLOGY CO., LTD. Other third-party names and marks belong to their respective owners. They are used for identification and source attribution. PSUM is an independent project; these references do not imply affiliation, sponsorship, or endorsement.
+Third-party company names, product names, and marks belong to their respective rights holders and are used for identification and source attribution. These include Lenovo/ThinkPad, Simplo/SMP, LG, Sunwoda, ATL, CosMX, Panasonic/SANYO, Murata/Sony, Celxpert, NVT, SCUD, Inventus Power, EVE, Lishen, Maxell, BYD, and other names appearing in the referenced manufacturer documents. PSUM is an independent project; references do not imply affiliation, sponsorship, or endorsement.
+
+Supplier and document names need context:
+
+| Name or document label | Attribution and source |
+| --- | --- |
+| LG / LGPO | The [Lenovo-hosted SDS_LGPO.pdf](https://www.lenovo.com/content/dam/lenovo/site-design/esg-document-library/global/battery-msds/notebooks---ultrabooks/SDS_LGPO.pdf) identifies LG Energy Solution, LTD. LGPO is a document filename token, not evidence of a separate company. LG Energy Solution's [company report](https://www.lgensol.com/assets/file/2020_LGES_ESG_Report_ALL_f.pdf) records its December 2020 split from LG Chem's battery business; retain each document's original issuer and date. |
+| Sunwoda / ATL | [Sunwoda Electronic Co., Ltd.](https://en.sunwoda.com/about-profile) and [Amperex Technology Limited (ATL)](https://www.atlbattery.com/) have distinct roles in the [Sunwoda/ATL SDS](https://www.lenovo.com/content/dam/lenovo/site-design/esg-document-library/global/battery-msds/notebooks---ultrabooks/SDS_Sunwoda_ATL.pdf): Sunwoda is the pack manufacturer; ATL is the cell manufacturer. This example does not identify the cells in every Sunwoda pack. |
+| CosMX | [Zhuhai CosMX Battery Co., Ltd.](https://www.cosmx.com/html/en/html/about/about/). Preserve the distinction between a pack supplier and a cell manufacturer named within its document. |
+| Panasonic / SANYO | Panasonic's [corporate history](https://www.panasonic.com/content/dam/panasonic/global/en/energy/sustainability/report/Integrated_report2024_print_en_strength.pdf) records SANYO becoming wholly owned in 2011 and Panasonic Energy being established in 2022. Historical documents retain their original issuer. |
+| Murata / Sony | Sony [announced completion of the battery business transfer to Murata on 1 September 2017](https://www.sony.com/en/SonyInfo/News/Press/201709/17-077E/). Do not infer that every Sony-branded battery product or right transferred. |
+| Simplo / SMP | [SIMPLO TECHNOLOGY CO., LTD.](https://www.simplo.com.tw/?lang=en); the referenced L19M4PF7 report bears the SMP mark. |
+| Other battery suppliers | Official sources identify [Celxpert Energy Corporation](https://www.celxpert.com.tw/pdf/537434), [Dongguan NVT Technology Co., Ltd.](https://www.nvtpower.com/?lang=en), [SCUD Group Limited](https://scud.cn/en/index.html), [Inventus Power](https://inventuspower.com/about/), [EVE Energy Co., Ltd.](https://www.evebattery.com/en/about), [Tianjin Lishen Battery Joint-Stock Co., Ltd.](https://en.lishen.com.cn/), [Maxell, Ltd.](https://www2.maxell.co.jp/corporate/about_max.html), and [BYD](https://www.byd.com/en/about-byd). A group or brand identity does not establish the exact legal issuer of every historical SDS. |
+
+Retain names and spellings as recorded in the particular source, including historical or abbreviated labels; verify the document before assigning a legal entity. These references identify companies and document context, not trademark registrations in every jurisdiction.
 
 Lenovo battery safety data sheets (SDS/MSDS), UN38.3 test reports, and related manufacturer documents remain subject to their own rights notices. For example, Simplo's L19M4PF7 UN38.3 report, control number SLEU-2003020, revision 02 dated 12 November 2021, identifies its contents as Simplo's exclusive property and states that distribution, reproduction, or disclosure of all or part requires prior written permission.
+
+That Simplo restriction is evidence for the cited report; it has not been verified as a clause in every supplier's documents. Check each document's own notice.
 
 This attribution does not grant permission to redistribute those documents or their contents. PSUM's MIT license does not grant rights to third-party documents or trademarks. Obtain any required permission from the relevant rights holder before including copies or extracts in the repository, application, or release packages.
 
