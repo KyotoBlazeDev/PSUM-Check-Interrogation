@@ -184,6 +184,16 @@ See [SECURITY.md](SECURITY.md) for supported versions, vulnerability reporting, 
 
 Authenticode signing and pre-signing malware scanning are **planned for the 2027 v1.1.0 generation**. They are not implemented in the current Build or Release workflows. Published SHA-256 checksums help verify artifact integrity; they do not establish publisher identity or guarantee vulnerability-free software.
 
+## Third-party names and battery documents
+
+Lenovo and ThinkPad names and marks belong to Lenovo. SIMPLO and SMP names and marks belong to SIMPLO TECHNOLOGY CO., LTD. Other third-party names and marks belong to their respective owners. They are used for identification and source attribution. PSUM is an independent project; these references do not imply affiliation, sponsorship, or endorsement.
+
+Lenovo battery safety data sheets (SDS/MSDS), UN38.3 test reports, and related manufacturer documents remain subject to their own rights notices. For example, Simplo's L19M4PF7 UN38.3 report, control number SLEU-2003020, revision 02 dated 12 November 2021, identifies its contents as Simplo's exclusive property and states that distribution, reproduction, or disclosure of all or part requires prior written permission.
+
+This attribution does not grant permission to redistribute those documents or their contents. PSUM's MIT license does not grant rights to third-party documents or trademarks. Obtain any required permission from the relevant rights holder before including copies or extracts in the repository, application, or release packages.
+
+Use [Lenovo's official battery MSDS page](https://www.lenovo.com/us/en/compliance/battery-msds/) to obtain the manufacturer's documents. The referenced [L19M4PF7 UN38.3 report](https://www.lenovo.com/content/dam/lenovo/site-design/esg-document-library/global/battery-un-38-3-test-document/notebooks---ultrabooks/SB10Z33892_UN38dot3.pdf) is hosted by Lenovo. A model's transport test results do not establish the present condition or safety of an individual battery.
+
 ## License
 
 See [LICENSE](LICENSE) for the MIT license.
