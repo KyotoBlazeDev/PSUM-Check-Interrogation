@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly DispatcherQueueTimer _refreshTimer;
     private bool _diagnosticsReading;
+    private readonly BatteryCaptureSession _batteryCapture = new(BatteryDiagnosticsProvider.ReadAsync);
     private CheckInStorage? _checkInStorage;
     private BatteryDiagnostics _diagnostics = BatteryDiagnostics.Unknown();
     private int? _chargePercent;
@@ -32,7 +33,12 @@ public sealed partial class MainWindow : Window
         _thresholdsLoading = false;
         BusinessPage.SetOwner(this);
         BusinessPage.RecordsChanged += (_, _) => UpdateAlerts();
-        BusinessPage.ReadingCaptured += ApplyDiagnostics;
+        BusinessPage.SetCaptureProvider(_batteryCapture.ReadAsync);
+        _batteryCapture.Captured += reading =>
+        {
+            ApplyDiagnostics(reading);
+            BusinessPage.AcceptTelemetry(reading);
+        };
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1200, 900));
         InitializeChassisImage();
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "battery_paper_app_icon.ico"));
@@ -89,12 +95,10 @@ public sealed partial class MainWindow : Window
         try
         {
             DiagnosticsLog.Info("Telemetry.Capture.Start");
-            var reading = await BatteryDiagnosticsProvider.ReadAsync();
+            var reading = await _batteryCapture.ReadAsync();
             DiagnosticsLog.Info("Telemetry.Capture.Complete", $"healthAvailable={reading.HealthPercent is not null}");
             if (reading.Issue is not null) DiagnosticsLog.Warning("Telemetry.Capture.Unavailable", DiagnosticsLog.BatteryIssue(reading.Issue));
             if (!string.IsNullOrWhiteSpace(reading.SourceWarning)) DiagnosticsLog.Warning("Telemetry.Capture.Partial", DiagnosticsLog.BatteryIssue(reading.SourceWarning));
-            ApplyDiagnostics(reading);
-            BusinessPage.AcceptTelemetry(reading);
         }
         finally
         {

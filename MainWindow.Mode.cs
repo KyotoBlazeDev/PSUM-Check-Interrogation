@@ -63,6 +63,9 @@ public sealed partial class MainWindow
         Title = _businessMode ? "PSUM Check — Business" : "PSUM Check — Standard";
         AppNavigation.PaneTitle = _businessMode ? "PSUM Business" : "PSUM Standard";
         BusinessNav.Visibility = _businessMode ? Visibility.Visible : Visibility.Collapsed;
+        OpenBusinessButton.Visibility = BusinessNav.Visibility;
+        if (!_businessMode && ReferenceEquals(AppNavigation.SelectedItem, BusinessNav))
+            AppNavigation.SelectedItem = DashboardNav;
         DashboardNav.Content = _businessMode ? "Live telemetry" : "Dashboard";
         HistoryNav.Content = _businessMode ? "Telemetry history" : "History";
         ModePolicyText.Text = _businessMode
@@ -74,4 +77,8 @@ public sealed partial class MainWindow
     }
 
     private void ModeBackup_Click(object sender, RoutedEventArgs e) => AppNavigation.SelectedItem = DataNav;
+    private void OpenBusiness_Click(object sender, RoutedEventArgs e)
+    {
+        if (_businessMode) AppNavigation.SelectedItem = BusinessNav;
+    }
 }

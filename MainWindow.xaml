@@ -50,6 +50,7 @@
                             <TextBlock Text="Uses the Standard capacity policy with the Dashboard and History navigation labels." TextWrapping="Wrap" />
                             <TextBlock Text="Business · Battery maintenance" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock Text="Adds the Business workspace: asset tags, label provenance, physical observations, inspection schedules, replacement records and CSV / JSON audit exports. Dashboard and History become Live telemetry and Telemetry history." TextWrapping="Wrap" />
+                            <Button x:Name="OpenBusinessButton" Content="Open Business inspection workspace" Click="OpenBusiness_Click" Visibility="Collapsed" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Border>
                     <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12" Padding="20">

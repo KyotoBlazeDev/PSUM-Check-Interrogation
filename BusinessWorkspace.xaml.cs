@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Windows.Storage.Pickers;
 
 namespace PSUM_Check_Interrogation_WinUI_3;
@@ -13,7 +14,8 @@ public sealed partial class BusinessWorkspace : UserControl
     private Window? owner;
     internal void SetOwner(Window window) => owner = window;
     public event EventHandler? RecordsChanged;
-    internal event Action<BatteryDiagnostics>? ReadingCaptured;
+    private Func<Task<BatteryDiagnostics>>? captureReading;
+    internal void SetCaptureProvider(Func<Task<BatteryDiagnostics>> capture) => captureReading = capture;
     internal void AcceptTelemetry(BatteryDiagnostics sample)
     {
         if (capturing) return;
@@ -84,15 +86,16 @@ public sealed partial class BusinessWorkspace : UserControl
     }
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
+        if (!Ready(physicalOnly: true)) return;
         RefreshButton.IsEnabled = false;
         capturing = true;
+        Asset.IsEnabled = Manufacturer.IsEnabled = Model.IsEnabled = Serial.IsEnabled = Fru.IsEnabled = false;
         InspectionButton.IsEnabled = ReplacementButton.IsEnabled = false;
         try
         {
             DiagnosticsLog.Info("Battery.Capture.Start");
             var previousId = reading?.BatteryId ?? events.LastOrDefault(e => e.Machine == Environment.MachineName)?.BatteryId;
-            reading = await BatteryDiagnosticsProvider.ReadAsync(); capturedAt = DateTimeOffset.UtcNow;
-            ReadingCaptured?.Invoke(reading);
+            reading = await (captureReading ?? throw new InvalidOperationException("Workspace is not attached to battery capture."))(); capturedAt = DateTimeOffset.UtcNow;
             DiagnosticsLog.Info("Battery.Capture.Complete", $"healthAvailable={reading.HealthPercent is not null} voltageAvailable={reading.VoltageMv is not null} temperatureAvailable={reading.TemperatureC is not null}");
             if (reading.Issue is not null) DiagnosticsLog.Warning("Battery.Capture.Unavailable", "reason=" + DiagnosticsLog.BatteryIssue(reading.Issue));
             if (!string.IsNullOrWhiteSpace(reading.SourceWarning)) DiagnosticsLog.Warning("Battery.Capture.Partial", "reason=" + DiagnosticsLog.BatteryIssue(reading.SourceWarning));
@@ -108,7 +111,12 @@ public sealed partial class BusinessWorkspace : UserControl
             else { Render(); Notify(reading.Issue, true); }
         }
         catch (Exception ex) { DiagnosticsLog.Error("Battery.Capture", ex); Notify(ex.Message, true); }
-        finally { capturing = false; RefreshButton.IsEnabled = InspectionButton.IsEnabled = ReplacementButton.IsEnabled = true; }
+        finally
+        {
+            capturing = false;
+            Asset.IsEnabled = Manufacturer.IsEnabled = Model.IsEnabled = Serial.IsEnabled = Fru.IsEnabled = true;
+            RefreshButton.IsEnabled = InspectionButton.IsEnabled = ReplacementButton.IsEnabled = true;
+        }
     }
     private void Inspection_Click(object sender, RoutedEventArgs e)
     {

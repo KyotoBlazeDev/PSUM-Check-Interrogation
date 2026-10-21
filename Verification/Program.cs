@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Threading.Tasks;
 using PSUM_Check_Interrogation_WinUI_3;
 
 static void Check(bool condition, string description) { if (!condition) throw new Exception(description); Console.WriteLine("PASS: " + description); }
@@ -139,4 +140,28 @@ var afterReplacement = item with { Id = Guid.NewGuid(), At = item.At.AddSeconds(
 var lifecycle = BusinessPolicy.Lifecycle(new[] { item, replacementEvent, otherAsset, afterReplacement }, "machine", item.Asset, item.BatteryId);
 Check(lifecycle.SequenceEqual(new[] { replacementEvent, afterReplacement }), "Workspace lifecycle excludes other assets and inspections before replacement");
 Check(!BusinessPolicy.Lifecycle(new[] { item }, "machine", "new-asset", item.BatteryId).Any(), "New asset cannot inherit another asset's inspection or trend");
+int captureCalls = 0, captureNotifications = 0;
+var captureSource = new TaskCompletionSource<BatteryDiagnostics>();
+var captureSession = new BatteryCaptureSession(() => { captureCalls++; return captureSource.Task; });
+captureSession.Captured += _ => captureNotifications++;
+var dashboardCapture = captureSession.ReadAsync();
+var inspectionCapture = captureSession.ReadAsync();
+Check(ReferenceEquals(dashboardCapture, inspectionCapture) && captureCalls == 1, "Dashboard and inspection share one in-flight battery query");
+captureSource.SetResult(reading);
+Check(await dashboardCapture == reading && await inspectionCapture == reading && captureNotifications == 1, "Shared capture publishes one sample to both consumers");
+captureSource = new TaskCompletionSource<BatteryDiagnostics>();
+var unavailableCapture = captureSession.ReadAsync();
+captureSource.SetResult(BatteryDiagnostics.Unknown("Access denied"));
+Check((await unavailableCapture).HealthPercent is null && captureNotifications == 2 && captureCalls == 2, "A later capture can publish unavailable telemetry without reusing old health");
+captureSource = new TaskCompletionSource<BatteryDiagnostics>();
+var failedCapture = captureSession.ReadAsync();
+captureSource.SetException(new IOException("simulated query failure"));
+try { await failedCapture; throw new Exception("Query failure was hidden"); }
+catch (IOException) { Check(captureNotifications == 2, "Failed queries do not publish a successful capture"); }
+captureSource = new TaskCompletionSource<BatteryDiagnostics>();
+var recoveredCapture = captureSession.ReadAsync();
+captureSource.SetResult(reading);
+Check(await recoveredCapture == reading && captureCalls == 4 && captureNotifications == 3, "Battery capture recovers after a failed query");
+var synchronousSession = new BatteryCaptureSession(() => Task.FromResult(reading));
+Check(await synchronousSession.ReadAsync() == reading && await synchronousSession.ReadAsync() == reading, "Immediately completed capture does not leave a stuck in-flight request");
 Console.WriteLine("All verification checks passed.");
