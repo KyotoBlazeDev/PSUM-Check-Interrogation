@@ -7,6 +7,7 @@
   <InfoBar x:Name="Message" IsOpen="False" IsClosable="True" />
   <TextBlock Text="Enter an asset tag, capture a reading, then complete the physical inspection below. Capturing here saves a Business audit reading; refreshing live telemetry only updates the current values." TextWrapping="Wrap" />
   <TextBox x:Name="Asset" Header="Asset tag" MaxLength="128" />
+  <TextBlock Text="Changing the asset loads its saved battery label fields and clears unsaved physical observations and notes. A changed battery label is recorded as a physical observation without attaching the previous battery's telemetry." TextWrapping="Wrap" />
   <StackPanel Orientation="Horizontal" Spacing="12"><Button x:Name="RefreshButton" Content="Capture battery reading" Click="Refresh_Click" /><Button Content="Export JSON" Click="Json_Click" /><Button Content="Export CSV" Click="Csv_Click" /></StackPanel>
   <TextBlock x:Name="Dashboard" FontSize="18" TextWrapping="Wrap" />
   <TextBlock x:Name="Recommendation" TextWrapping="Wrap" FontWeight="SemiBold" />

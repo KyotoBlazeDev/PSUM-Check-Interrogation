@@ -140,6 +140,36 @@ var afterReplacement = item with { Id = Guid.NewGuid(), At = item.At.AddSeconds(
 var lifecycle = BusinessPolicy.Lifecycle(new[] { item, replacementEvent, otherAsset, afterReplacement }, "machine", item.Asset, item.BatteryId);
 Check(lifecycle.SequenceEqual(new[] { replacementEvent, afterReplacement }), "Workspace lifecycle excludes other assets and inspections before replacement");
 Check(!BusinessPolicy.Lifecycle(new[] { item }, "machine", "new-asset", item.BatteryId).Any(), "New asset cannot inherit another asset's inspection or trend");
+var provenanceHistory = new[] { item, otherAsset, item with { Id = Guid.NewGuid(), Machine = "other-machine", At = item.At.AddDays(1), Serial = "unrelated" } };
+Check(BusinessPolicy.LatestAssetRecord(provenanceHistory, "machine", "  " + item.Asset + "  ") == item, "Asset lookup trims form whitespace and excludes other machines and assets");
+Check(BusinessPolicy.LatestAssetRecord(provenanceHistory, "machine", "new asset") is null, "New asset has no inherited label provenance");
+var relabeled = BusinessPolicy.AssetInspectionReading(provenanceHistory, "machine", item.Asset, "new-serial", reading, now, now);
+Check(relabeled.HealthPercent is null && relabeled.Issue is not null && relabeled.BatteryId == BatteryIdentity.Create("label", "inventory", "new-serial"), "Changed serial cannot inherit fresh telemetry from the previous battery");
+Check(BusinessPolicy.AssetInspectionReading(provenanceHistory, "machine", item.Asset, "  SERIAL  ", reading, now, now) == reading, "Unchanged label comparison ignores case and surrounding whitespace");
+var knownOffline = BusinessPolicy.AssetInspectionReading(provenanceHistory, "machine", item.Asset, item.Serial, null, default, now);
+Check(knownOffline.BatteryId == item.BatteryId && knownOffline.HealthPercent is null, "Offline inspection retains only the selected asset's known battery identity");
+var newOffline = BusinessPolicy.AssetInspectionReading(provenanceHistory, "machine", "new asset", "new-label", null, default, now);
+Check(newOffline.BatteryId == BatteryIdentity.Create("label", "inventory", "new-label") && newOffline.HealthPercent is null, "New offline asset uses explicit label identity without invented telemetry");
+try { BusinessPolicy.AssetInspectionReading(provenanceHistory, "machine", "  ", "serial", reading, now, now); throw new Exception("Blank asset accepted"); }
+catch (InvalidDataException) { Console.WriteLine("PASS: Inspection policy rejects blank asset tags"); }
+Check(BusinessPolicy.InspectionReading(reading, now.AddMinutes(1), now, item.BatteryId, "").HealthPercent is null, "Future-dated capture is not fresh inspection evidence");
+Check(BusinessPolicy.InspectionReading(null, default, now, "  ", "label-id").BatteryId == BatteryIdentity.Create("label", "inventory", "label-id"), "Blank known identity falls back to explicit label provenance");
+var provenanceStore = new BusinessStore(Path.Combine(testRoot, "provenance"));
+try { provenanceStore.Append(item with { BatteryId = "different-battery" }); throw new Exception("Mismatched battery evidence accepted"); }
+catch (InvalidDataException) { Console.WriteLine("PASS: Audit store rejects mismatched event and telemetry identities"); }
+try { provenanceStore.Append(item with { Kind = "Reading", Asset = "  " }); throw new Exception("Unassigned reading accepted"); }
+catch (InvalidDataException) { Console.WriteLine("PASS: New audit readings require an asset tag"); }
+Directory.CreateDirectory(provenanceStore.Folder);
+File.WriteAllText(Path.Combine(provenanceStore.Folder, "legacy.json"), JsonSerializer.Serialize(item with { Kind = "Reading", Asset = "" }));
+Check(provenanceStore.Read().Single().Asset == "", "Legacy unassigned readings stay readable without rewriting history");
+provenanceStore.Append(item with { Id = Guid.NewGuid(), Reading = relabeled, BatteryId = relabeled.BatteryId, Serial = "new-serial" });
+var savedLabel = provenanceStore.Read().Single(e => e.Serial == "new-serial");
+Check(savedLabel.Reading == relabeled && BusinessStore.Csv(new[] { savedLabel }).Contains("Unknown"), "Label-only provenance survives JSON persistence and exports as Unknown health");
+Check(BusinessPolicy.AssetInspectionReading(new[] { savedLabel }, "machine", item.Asset, "new-serial", reading, now, now).HealthPercent is null,
+    "Later live telemetry cannot silently convert a label-only battery into a connected battery");
+var relabeledCapture = item with { Id = Guid.NewGuid(), Kind = "Reading", At = item.At.AddSeconds(1), Serial = "new-serial" };
+Check(BusinessPolicy.AssetInspectionReading(new[] { item, relabeledCapture }, "machine", item.Asset, "new-serial", reading, now, now).HealthPercent is null,
+    "An intervening capture cannot overwrite established inspection label provenance");
 int captureCalls = 0, captureNotifications = 0;
 var captureSource = new TaskCompletionSource<BatteryDiagnostics>();
 var captureSession = new BatteryCaptureSession(() => { captureCalls++; return captureSource.Task; });

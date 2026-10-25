@@ -14,6 +14,24 @@ internal sealed record BusinessEvent(Guid Id, DateTimeOffset At, string Operator
 
 internal static class BusinessPolicy
 {
+    public static BusinessEvent? LatestAssetRecord(IEnumerable<BusinessEvent> records, string machine, string asset) =>
+        records.Where(e => e.Machine == machine && e.Asset == asset.Trim()).OrderBy(e => e.At).ThenBy(e => e.Id).LastOrDefault();
+
+    public static BatteryDiagnostics AssetInspectionReading(IEnumerable<BusinessEvent> records, string machine, string asset,
+        string serial, BatteryDiagnostics? sample, DateTimeOffset capturedAt, DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(asset)) throw new InvalidDataException("Enter the asset tag.");
+        var previous = LatestAssetRecord(records.Where(e => e.Kind is "Inspection" or "Replacement"), machine, asset)
+            ?? LatestAssetRecord(records, machine, asset);
+        bool changedLabel = !string.IsNullOrWhiteSpace(serial) && previous is not null &&
+            !string.Equals(previous.Serial, serial.Trim(), StringComparison.OrdinalIgnoreCase);
+        bool labelOnly = previous is not null && !string.IsNullOrWhiteSpace(previous.Serial) &&
+            previous.BatteryId == BatteryIdentity.Create("label", "inventory", previous.Serial.Trim());
+        // A newly entered label does not establish that the connected battery is that battery.
+        return InspectionReading(changedLabel || labelOnly ? null : sample, capturedAt, now,
+            changedLabel ? null : previous?.BatteryId, serial);
+    }
+
     public static BusinessEvent[] Lifecycle(IEnumerable<BusinessEvent> records, string machine, string asset, string? batteryId)
     {
         var current = records.Where(e => e.Machine == machine && e.Asset == asset && e.BatteryId == batteryId).OrderBy(e => e.At).ThenBy(e => e.Id).ToArray();
@@ -23,11 +41,11 @@ internal static class BusinessPolicy
 
     public static BatteryDiagnostics InspectionReading(BatteryDiagnostics? sample, DateTimeOffset capturedAt, DateTimeOffset now, string? knownId, string serial)
     {
-        if (sample is { Issue: null } && now - capturedAt <= TimeSpan.FromMinutes(5)) return sample;
+        if (sample is { Issue: null } && capturedAt != default && capturedAt <= now && now - capturedAt <= TimeSpan.FromMinutes(5)) return sample;
         if (string.IsNullOrWhiteSpace(knownId) && string.IsNullOrWhiteSpace(serial))
             throw new InvalidDataException("Enter the battery serial / inventory ID to identify an inspection without telemetry.");
         return BatteryDiagnostics.Unknown("Physical observation only; current telemetry unavailable. " + (sample?.Issue ?? "No recent valid capture.")) with
-        { BatteryId = knownId ?? BatteryIdentity.Create("label", "inventory", serial.Trim()), Status = "Unavailable" };
+        { BatteryId = string.IsNullOrWhiteSpace(knownId) ? BatteryIdentity.Create("label", "inventory", serial.Trim()) : knownId, Status = "Unavailable" };
     }
 
     public static IReadOnlyList<string> Alerts(IEnumerable<BusinessEvent> records, string machine, DateTimeOffset now)
@@ -67,6 +85,8 @@ internal sealed class BusinessStore
     public void Append(BusinessEvent item)
     {
         Validate(item);
+        // Older unassigned Reading records remain readable, but new records need an asset.
+        if (string.IsNullOrWhiteSpace(item.Asset)) throw new InvalidDataException("Enter the asset tag.");
         Read(); // Do not add to a corrupt or unreadable audit history.
         Directory.CreateDirectory(Folder);
         if (File.Exists(Path.Combine(Folder, item.Id + ".json"))) throw new IOException("Audit record already exists.");
@@ -82,6 +102,8 @@ internal sealed class BusinessStore
     {
         if (item.Id == Guid.Empty || item.At == default || string.IsNullOrWhiteSpace(item.Operator) || string.IsNullOrWhiteSpace(item.Machine) || string.IsNullOrWhiteSpace(item.BatteryId) || item.Kind is not ("Reading" or "Inspection" or "Replacement") || item.Reading is null)
             throw new InvalidDataException("Audit record is missing required identity, timestamp or reading fields.");
+        if (item.BatteryId != item.Reading.BatteryId)
+            throw new InvalidDataException("Audit battery identity does not match its reading.");
         if (item.Kind == "Inspection" && (string.IsNullOrWhiteSpace(item.Asset) || item.NextDue is null || new[] { item.Swelling, item.Heat, item.Leakage, item.Odor }.Any(value => value is not ("Absent" or "Present")) || item.Visual is not ("Normal" or "Damaged")))
             throw new InvalidDataException("Audit inspection is incomplete.");
         if (item.Kind == "Replacement" && (string.IsNullOrWhiteSpace(item.Asset) || string.IsNullOrWhiteSpace(item.Serial) || string.IsNullOrWhiteSpace(item.Notes)))

@@ -64,7 +64,17 @@ public sealed partial class BusinessWorkspace : UserControl
         dueTimer.Tick += (_, _) => Render();
         Loaded += (_, _) => dueTimer.Start();
         Unloaded += (_, _) => dueTimer.Stop();
-        Asset.TextChanged += (_, _) => Render();
+        Asset.TextChanged += (_, _) =>
+        {
+            var previous = BusinessPolicy.LatestAssetRecord(events, Environment.MachineName, Asset.Text);
+            Manufacturer.Text = previous?.Manufacturer ?? "";
+            Model.Text = previous?.Model ?? "";
+            Serial.Text = previous?.Serial ?? "";
+            Fru.Text = previous?.Fru ?? "";
+            Notes.Text = "";
+            ResetObservations();
+            Render();
+        };
     }
     private void Notify(string text, bool error = false) { Message.Message = text; Message.Severity = error ? InfoBarSeverity.Error : InfoBarSeverity.Success; Message.IsOpen = true; }
     private BusinessEvent Create(string kind, DateTimeOffset? due = null, BatteryDiagnostics? observation = null) => new(Guid.NewGuid(), DateTimeOffset.UtcNow,
@@ -126,10 +136,8 @@ public sealed partial class BusinessWorkspace : UserControl
         BatteryDiagnostics observation;
         try
         {
-            var previous = events.LastOrDefault(e => e.Machine == Environment.MachineName && e.Asset == Asset.Text.Trim());
-            string? knownId = previous?.BatteryId;
-            if (!string.IsNullOrWhiteSpace(Serial.Text) && !string.Equals(previous?.Serial, Serial.Text.Trim(), StringComparison.OrdinalIgnoreCase)) knownId = null;
-            observation = BusinessPolicy.InspectionReading(reading, capturedAt, DateTimeOffset.UtcNow, knownId, Serial.Text);
+            observation = BusinessPolicy.AssetInspectionReading(events, Environment.MachineName, Asset.Text,
+                Serial.Text, reading, capturedAt, DateTimeOffset.UtcNow);
         }
         catch (InvalidDataException ex) { Notify(ex.Message, true); return; }
         var item = Create("Inspection", DateTimeOffset.UtcNow.AddDays(Interval.Value), observation);
