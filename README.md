@@ -80,7 +80,7 @@ Use the navigation menu to switch between **Dashboard**, **Check-in**, **History
 
 ### Backup and restore
 
-**Backup & Restore** creates a consistent SQLite backup. Restore checks the selected file's integrity and required PSUM tables, creates a dated safety copy of the current database, then restores the selected backup. Close the original Python PSUM app before restoring. The confirmation dialog shows the selected file before any current records are replaced.
+**Backup & Restore** creates a consistent SQLite backup. Restore checks integrity and upgrades a staging copy to the current schema before creating a dated safety copy and replacing the active database. The selected backup is left unchanged. Startup migrations also save a `*-before-migration-*.sqlite3` safety copy beside the database before upgrading legacy data; schema changes and snapshot consolidation commit together or roll back together. If replacement fails, restore attempts to recover the active database from its safety copy. Close other PSUM windows and the original Python PSUM app before restoring. The confirmation dialog shows the selected file before any current records are replaced. These SQLite backups do not include the separate Business audit JSON files.
 
 ### Stored-battery inspections
 

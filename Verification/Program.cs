@@ -194,4 +194,89 @@ captureSource.SetResult(reading);
 Check(await recoveredCapture == reading && captureCalls == 4 && captureNotifications == 3, "Battery capture recovers after a failed query");
 var synchronousSession = new BatteryCaptureSession(() => Task.FromResult(reading));
 Check(await synchronousSession.ReadAsync() == reading && await synchronousSession.ReadAsync() == reading, "Immediately completed capture does not leave a stuck in-flight request");
+void WithSqlite(string path, Action<IntPtr> action)
+{
+    using var connection = (IDisposable)typeof(CheckInStorage).GetMethod("OpenPath", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { path, 6 })!;
+    action((IntPtr)connection.GetType().GetProperty("Handle")!.GetValue(connection)!);
+}
+void Sql(string path, params string[] commands) => WithSqlite(path, db =>
+{
+    foreach (string sql in commands) typeof(CheckInStorage).GetMethod("Execute", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { db, sql });
+});
+string Scalar(string path, string sql)
+{
+    string result = "";
+    WithSqlite(path, db =>
+    {
+        using var statement = (IDisposable)typeof(CheckInStorage).GetMethod("Prepare", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { db, sql })!;
+        var handle = (IntPtr)statement.GetType().GetProperty("Handle")!.GetValue(statement)!;
+        if ((int)typeof(CheckInStorage).GetMethod("sqlite3_step", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { handle })! != 100) throw new Exception("Fixture query returned no row");
+        result = (string)typeof(CheckInStorage).GetMethod("ReadText", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, new object[] { handle, 0 })!;
+    });
+    return result;
+}
+string legacyPath = Path.Combine(telemetryFolder, "legacy.sqlite3");
+telemetry.BackupDatabase(legacyPath);
+Sql(legacyPath, "DROP INDEX idx_checkins_evidence_id", "ALTER TABLE checkins DROP COLUMN evidence_id",
+    "DROP INDEX idx_stored_battery_inspections_evidence_id", "ALTER TABLE stored_battery_inspections DROP COLUMN evidence_id",
+    "DROP INDEX idx_lenovo_snapshot_day_identity", "ALTER TABLE lenovo_battery_snapshots DROP COLUMN snapshot_day",
+    "ALTER TABLE lenovo_battery_snapshots DROP COLUMN identity_key", "DROP TABLE app_settings", "DROP TABLE lenovo_battery_snapshot_revisions");
+byte[] originalLegacy = File.ReadAllBytes(legacyPath);
+telemetry.ValidateBackup(legacyPath);
+Check(File.ReadAllBytes(legacyPath).SequenceEqual(originalLegacy), "Backup validation upgrades only staging and leaves the legacy source unchanged");
+Check(!Directory.GetFiles(telemetryFolder, ".psum-restore-*").Any(), "Validation removes its staging database");
+var upgraded = new CheckInStorage(legacyPath);
+Check(upgraded.MigrationBackupPath is string migrationCopy && File.Exists(migrationCopy) &&
+    Scalar(migrationCopy, "SELECT count(*) FROM pragma_table_info('checkins') WHERE name='evidence_id'") == "0", "Legacy startup saves the pre-migration schema before any upgrade");
+string upgradedEvidence = upgraded.Recent().Single().EvidenceId;
+Check(Guid.TryParse(upgradedEvidence, out _) && upgraded.Recent().Single().Note == checkin.Note, "Transactional migration retains legacy data and adds evidence identity");
+Check(new CheckInStorage(legacyPath).MigrationBackupPath is null && upgraded.Recent().Single().EvidenceId == upgradedEvidence, "Reopening an upgraded database preserves evidence IDs without another migration backup");
+string restoreLegacy = Path.Combine(telemetryFolder, "restore-legacy.sqlite3");
+File.WriteAllBytes(restoreLegacy, originalLegacy);
+string restoreSafety = telemetry.RestoreDatabase(restoreLegacy);
+Check(File.ReadAllBytes(restoreLegacy).SequenceEqual(originalLegacy) && File.Exists(restoreSafety), "Legacy restore preserves its source and saves the active database");
+telemetry.SetSetting("after-restore", "works");
+Check(telemetry.GetSetting("after-restore") == "works" && Guid.TryParse(telemetry.Recent().Single().EvidenceId, out _), "Restored legacy schema is upgraded before settings and history are used");
+string failedMigration = Path.Combine(telemetryFolder, "failed-migration.sqlite3");
+telemetry.BackupDatabase(failedMigration);
+Sql(failedMigration, "DROP TABLE app_settings", "DROP INDEX idx_checkins_evidence_id", "UPDATE checkins SET evidence_id='duplicate'",
+    "INSERT INTO checkins(recorded_at,battery_id,state,note,evidence_id) VALUES('2026-10-27','fixture','Unknown','preserve','duplicate')");
+try { _ = new CheckInStorage(failedMigration); throw new Exception("Invalid migration succeeded"); }
+catch (IOException) { Console.WriteLine("PASS: Migration rejects conflicting evidence identities"); }
+Check(Scalar(failedMigration, "SELECT count(*) FROM sqlite_master WHERE name='app_settings'") == "0" && Scalar(failedMigration, "SELECT count(*) FROM checkins") == "2", "Failed migration rolls back schema edits and preserves all records");
+string beforeFailedRestore = telemetry.GetSetting("after-restore")!;
+try { telemetry.RestoreDatabase(failedMigration); throw new Exception("Invalid restore succeeded"); }
+catch (IOException) { Console.WriteLine("PASS: Restore rejects a candidate that cannot migrate"); }
+Check(telemetry.GetSetting("after-restore") == beforeFailedRestore && telemetry.Recent().Count == 1, "Failed staged migration leaves active history and settings untouched");
+string corruptBackup = Path.Combine(telemetryFolder, "corrupt.sqlite3");
+File.WriteAllText(corruptBackup, "not SQLite");
+try { telemetry.RestoreDatabase(corruptBackup); throw new Exception("Corrupt restore succeeded"); }
+catch (IOException) { Console.WriteLine("PASS: Corrupt backup rejected before restore"); }
+Check(telemetry.GetSetting("after-restore") == "works" && !Directory.GetFiles(telemetryFolder, ".psum-restore-*").Any(), "Rejected restores retain live settings and leave no staging files");
+string malformedSettings = Path.Combine(telemetryFolder, "malformed-settings.sqlite3");
+telemetry.BackupDatabase(malformedSettings);
+Sql(malformedSettings, "ALTER TABLE app_settings RENAME COLUMN value TO incompatible_value");
+try { telemetry.RestoreDatabase(malformedSettings); throw new Exception("Incompatible settings restored"); }
+catch (InvalidDataException) { Console.WriteLine("PASS: Staged restore checks settings schema as well as telemetry tables"); }
+Check(telemetry.GetSetting("after-restore") == "works", "Incompatible auxiliary schema cannot replace active settings");
+string duplicateSnapshots = Path.Combine(telemetryFolder, "legacy-snapshots.sqlite3");
+File.WriteAllBytes(duplicateSnapshots, originalLegacy);
+Sql(duplicateSnapshots,
+    "INSERT INTO lenovo_battery_snapshots(capture_id,captured_at,battery_id,barcode,data_json) VALUES('first','2026-10-20T10:00:00','battery','barcode','{}')",
+    "INSERT INTO lenovo_battery_snapshots(capture_id,captured_at,battery_id,barcode,data_json) VALUES('second','2026-10-20T11:00:00','battery','barcode','{}')");
+var consolidated = new CheckInStorage(duplicateSnapshots);
+Check(consolidated.RecentLenovoSnapshots().Count == 1 && Scalar(duplicateSnapshots, "SELECT count(*) FROM lenovo_battery_snapshot_revisions") == "1", "Transactional migration archives duplicate snapshots instead of losing them");
+Check(Scalar(consolidated.MigrationBackupPath!, "SELECT count(*) FROM lenovo_battery_snapshots") == "2", "Pre-migration safety copy retains both original snapshots");
+try { telemetry.BackupDatabase(Path.Combine(telemetryFolder, ".", "telemetry.sqlite3")); throw new Exception("Self-backup accepted"); }
+catch (ArgumentException) { Console.WriteLine("PASS: Backup rejects an alternate spelling of the active path"); }
+try { telemetry.RestoreDatabase(Path.Combine(telemetryFolder, ".", "telemetry.sqlite3")); throw new Exception("Self-restore accepted"); }
+catch (ArgumentException) { Console.WriteLine("PASS: Restore rejects an alternate spelling of the active path"); }
+string blockedBackup = Path.Combine(telemetryFolder, "blocked-destination");
+Directory.CreateDirectory(blockedBackup);
+File.WriteAllText(Path.Combine(blockedBackup, "keep.txt"), "preserve");
+try { telemetry.BackupDatabase(blockedBackup); throw new Exception("Backup replaced a directory"); }
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Console.WriteLine("PASS: Backup handles a blocked destination"); }
+Check(File.ReadAllText(Path.Combine(blockedBackup, "keep.txt")) == "preserve" &&
+    !Directory.GetFiles(telemetryFolder, "blocked-destination.staging-*").Any() && telemetry.GetSetting("after-restore") == "works",
+    "Failed backup preserves the destination and active database and cleans staging");
 Console.WriteLine("All verification checks passed.");

@@ -209,6 +209,8 @@ public sealed partial class MainWindow : Window
                 return (storage, rows: storage.Recent(1_000_000));
             });
             _checkInStorage = result.storage;
+            if (_checkInStorage.MigrationBackupPath is string migrationBackup)
+                ShowDataMessage(InfoBarSeverity.Success, "Database upgraded", $"Pre-migration safety copy: {migrationBackup}");
             HistoryRowsLoaded(result.rows);
             SaveCheckInButton.IsEnabled = !_diagnosticsReading;
             BackupButton.IsEnabled = true;

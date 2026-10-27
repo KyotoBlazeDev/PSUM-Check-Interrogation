@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace PSUM_Check_Interrogation_WinUI_3;
 
@@ -23,105 +24,195 @@ internal sealed class CheckInStorage
     private const int OpenReadOnly = 0x00000001;
     private const int OpenReadWriteCreate = 0x00000006;
     private readonly string _path;
+    private readonly object _databaseGate = new();
+    internal string? MigrationBackupPath { get; }
     internal static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PSUM", "psum.sqlite3");
 
-    public CheckInStorage(string? path = null)
+    public CheckInStorage(string? path = null) : this(path, true) { }
+
+    private CheckInStorage(string? path, bool migrationBackup)
     {
-        _path = path ?? DefaultPath;
+        _path = Path.GetFullPath(path ?? DefaultPath);
+        bool existing = File.Exists(_path) && new FileInfo(_path).Length > 0;
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         using var db = Open();
-        Execute(db.Handle, """
-            CREATE TABLE IF NOT EXISTS checkins (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                recorded_at TEXT NOT NULL,
-                battery_id TEXT NOT NULL,
-                charge_percent INTEGER,
-                state TEXT NOT NULL,
-                health_percent REAL,
-                cycle_count INTEGER,
-                note TEXT NOT NULL DEFAULT '',
-                evidence_id TEXT
-            )
-            """);
-        Execute(db.Handle, "CREATE TABLE IF NOT EXISTS battery_profile_state (profile_id TEXT PRIMARY KEY, lifecycle_state TEXT NOT NULL, updated_at TEXT NOT NULL)");
-        Execute(db.Handle, """
-            CREATE TABLE IF NOT EXISTS stored_battery_inspections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, checked_at TEXT NOT NULL,
-                physically_inspected INTEGER NOT NULL, swelling INTEGER, leakage INTEGER,
-                unusual_odor INTEGER, unexpected_warmth INTEGER, charge_measured INTEGER NOT NULL,
-                voltage_measured INTEGER NOT NULL, charge_percent INTEGER, voltage REAL, evidence_id TEXT
-            )
-            """);
-        Execute(db.Handle, "CREATE INDEX IF NOT EXISTS idx_stored_inspection_profile_time ON stored_battery_inspections(profile_id, checked_at DESC)");
-        Execute(db.Handle, """
-            CREATE TABLE IF NOT EXISTS lenovo_battery_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, capture_id TEXT NOT NULL,
-                captured_at TEXT NOT NULL, battery_id TEXT, barcode TEXT, data_json TEXT NOT NULL
-            )
-            """);
-        Execute(db.Handle, "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-        Execute(db.Handle, """
-            CREATE TABLE IF NOT EXISTS lenovo_battery_snapshot_revisions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, original_id INTEGER NOT NULL,
-                capture_id TEXT NOT NULL, captured_at TEXT NOT NULL, battery_id TEXT,
-                barcode TEXT, data_json TEXT NOT NULL, archived_at TEXT NOT NULL
-            )
-            """);
-        var snapshotColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using (var columns = Prepare(db.Handle, "PRAGMA table_info(lenovo_battery_snapshots)"))
-            while (sqlite3_step(columns.Handle) == Row) snapshotColumns.Add(ReadText(columns.Handle, 1));
-        if (!snapshotColumns.Contains("snapshot_day")) Execute(db.Handle, "ALTER TABLE lenovo_battery_snapshots ADD COLUMN snapshot_day TEXT");
-        if (!snapshotColumns.Contains("identity_key")) Execute(db.Handle, "ALTER TABLE lenovo_battery_snapshots ADD COLUMN identity_key TEXT");
-        ConsolidateLegacySnapshots(db.Handle);
-        Execute(db.Handle, "CREATE UNIQUE INDEX IF NOT EXISTS idx_lenovo_snapshot_day_identity ON lenovo_battery_snapshots(snapshot_day, identity_key)");
-        MigrateEvidenceIds(db.Handle, "checkins");
-        MigrateEvidenceIds(db.Handle, "stored_battery_inspections");
+        if (existing) ValidateIntegrity(db.Handle);
+        if (existing && NeedsMigration(db.Handle))
+        {
+            var checkins = Columns(db.Handle, "checkins");
+            if (new[] { "id", "recorded_at", "battery_id", "charge_percent", "state", "health_percent", "cycle_count", "note" }.Any(c => !checkins.Contains(c)))
+                throw new InvalidDataException("The existing database has an incompatible checkins table; no migration was applied.");
+            if (migrationBackup)
+            {
+                MigrationBackupPath = SafetyPath("migration");
+                try { BackupCopy(_path, MigrationBackupPath); }
+                catch { if (File.Exists(MigrationBackupPath)) File.Delete(MigrationBackupPath); throw; }
+            }
+        }
+        Execute(db.Handle, "BEGIN IMMEDIATE");
+        try
+        {
+            Execute(db.Handle, """
+                CREATE TABLE IF NOT EXISTS checkins (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recorded_at TEXT NOT NULL,
+                    battery_id TEXT NOT NULL,
+                    charge_percent INTEGER,
+                    state TEXT NOT NULL,
+                    health_percent REAL,
+                    cycle_count INTEGER,
+                    note TEXT NOT NULL DEFAULT '',
+                    evidence_id TEXT
+                )
+                """);
+            Execute(db.Handle, "CREATE TABLE IF NOT EXISTS battery_profile_state (profile_id TEXT PRIMARY KEY, lifecycle_state TEXT NOT NULL, updated_at TEXT NOT NULL)");
+            Execute(db.Handle, """
+                CREATE TABLE IF NOT EXISTS stored_battery_inspections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, profile_id TEXT NOT NULL, checked_at TEXT NOT NULL,
+                    physically_inspected INTEGER NOT NULL, swelling INTEGER, leakage INTEGER,
+                    unusual_odor INTEGER, unexpected_warmth INTEGER, charge_measured INTEGER NOT NULL,
+                    voltage_measured INTEGER NOT NULL, charge_percent INTEGER, voltage REAL, evidence_id TEXT
+                )
+                """);
+            Execute(db.Handle, "CREATE INDEX IF NOT EXISTS idx_stored_inspection_profile_time ON stored_battery_inspections(profile_id, checked_at DESC)");
+            Execute(db.Handle, """
+                CREATE TABLE IF NOT EXISTS lenovo_battery_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, capture_id TEXT NOT NULL,
+                    captured_at TEXT NOT NULL, battery_id TEXT, barcode TEXT, data_json TEXT NOT NULL
+                )
+                """);
+            Execute(db.Handle, "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+            Execute(db.Handle, """
+                CREATE TABLE IF NOT EXISTS lenovo_battery_snapshot_revisions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, original_id INTEGER NOT NULL,
+                    capture_id TEXT NOT NULL, captured_at TEXT NOT NULL, battery_id TEXT,
+                    barcode TEXT, data_json TEXT NOT NULL, archived_at TEXT NOT NULL
+                )
+                """);
+            var snapshotColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var columns = Prepare(db.Handle, "PRAGMA table_info(lenovo_battery_snapshots)"))
+                while (sqlite3_step(columns.Handle) == Row) snapshotColumns.Add(ReadText(columns.Handle, 1));
+            if (!snapshotColumns.Contains("snapshot_day")) Execute(db.Handle, "ALTER TABLE lenovo_battery_snapshots ADD COLUMN snapshot_day TEXT");
+            if (!snapshotColumns.Contains("identity_key")) Execute(db.Handle, "ALTER TABLE lenovo_battery_snapshots ADD COLUMN identity_key TEXT");
+            ConsolidateLegacySnapshots(db.Handle);
+            Execute(db.Handle, "CREATE UNIQUE INDEX IF NOT EXISTS idx_lenovo_snapshot_day_identity ON lenovo_battery_snapshots(snapshot_day, identity_key)");
+            MigrateEvidenceIds(db.Handle, "checkins");
+            MigrateEvidenceIds(db.Handle, "stored_battery_inspections");
+            ValidateSchema(db.Handle, true);
+            Execute(db.Handle, "COMMIT");
+        }
+        catch { Execute(db.Handle, "ROLLBACK"); throw; }
+    }
+
+    private string SafetyPath(string operation) => Path.Combine(Path.GetDirectoryName(_path)!,
+        $"{Path.GetFileNameWithoutExtension(_path)}-before-{operation}-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.sqlite3");
+
+    private static HashSet<string> Columns(IntPtr db, string table)
+    {
+        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var statement = Prepare(db, $"PRAGMA table_info({table})");
+        int step;
+        while ((step = sqlite3_step(statement.Handle)) == Row) found.Add(ReadText(statement.Handle, 1));
+        if (step != Done) throw Error(db);
+        return found;
+    }
+
+    private static bool NeedsMigration(IntPtr db)
+    {
+        foreach (var (table, required) in RequiredSchema(true))
+        {
+            var found = Columns(db, table);
+            if (required.Any(column => !found.Contains(column))) return true;
+        }
+        foreach (string sql in new[]
+        {
+            "SELECT 1 FROM checkins WHERE evidence_id IS NULL OR evidence_id='' LIMIT 1",
+            "SELECT 1 FROM stored_battery_inspections WHERE evidence_id IS NULL OR evidence_id='' LIMIT 1",
+            "SELECT 1 FROM lenovo_battery_snapshots WHERE snapshot_day IS NULL OR identity_key IS NULL LIMIT 1"
+        })
+        {
+            using var statement = Prepare(db, sql);
+            int step = sqlite3_step(statement.Handle);
+            if (step == Row) return true;
+            if (step != Done) throw Error(db);
+        }
+        return false;
     }
 
     public void BackupDatabase(string destination)
     {
-        if (SamePath(_path, destination)) throw new ArgumentException("Choose a destination different from the active database.");
-        string staged = destination + ".staging-" + Guid.NewGuid().ToString("N");
-        try
+        lock (_databaseGate)
         {
-            ValidateDatabase(_path);
-            BackupCopy(_path, staged);
-            ValidateDatabase(staged);
-            File.Move(staged, destination, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(staged)) File.Delete(staged);
+            if (SamePath(_path, destination)) throw new ArgumentException("Choose a destination different from the active database.");
+            string staged = destination + ".staging-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                ValidateDatabase(_path);
+                BackupCopy(_path, staged);
+                ValidateDatabase(staged);
+                File.Move(staged, destination, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(staged)) File.Delete(staged);
+            }
         }
     }
 
-    public void ValidateBackup(string path) => ValidateDatabase(path);
+    public void ValidateBackup(string path)
+    {
+        string staged = PrepareRestore(path);
+        File.Delete(staged);
+    }
 
-    public string RestoreDatabase(string selected)
+    private string PrepareRestore(string selected)
     {
         if (SamePath(_path, selected)) throw new ArgumentException("Select a backup file, not the active database.");
-        if (!File.Exists(selected)) throw new FileNotFoundException("Backup file not found.", selected);
         ValidateDatabase(selected);
-        string safety = Path.Combine(Path.GetDirectoryName(_path)!,
-            $"{Path.GetFileNameWithoutExtension(_path)}-before-restore-{DateTime.Now:yyyyMMdd-HHmmssffffff}.sqlite3");
-        BackupDatabase(safety);
         string staged = Path.Combine(Path.GetDirectoryName(_path)!, ".psum-restore-" + Guid.NewGuid().ToString("N") + ".sqlite3");
         try
         {
             BackupCopy(selected, staged);
+            _ = new CheckInStorage(staged, false);
             ValidateDatabase(staged);
-            BackupCopy(staged, _path);
-            ValidateDatabase(_path);
-            return safety;
+            return staged;
         }
-        catch (Exception ex)
+        catch { if (File.Exists(staged)) File.Delete(staged); throw; }
+    }
+
+    public string RestoreDatabase(string selected)
+    {
+        lock (_databaseGate)
         {
-            throw new IOException($"Restore failed. The safety copy is at {safety}. {ex.Message}", ex);
-        }
-        finally
-        {
-            if (File.Exists(staged)) File.Delete(staged);
+            if (SamePath(_path, selected)) throw new ArgumentException("Select a backup file, not the active database.");
+            if (!File.Exists(selected)) throw new FileNotFoundException("Backup file not found.", selected);
+            string staged = PrepareRestore(selected);
+            string safety = SafetyPath("restore");
+            bool replacing = false;
+            try
+            {
+                BackupDatabase(safety);
+                replacing = true;
+                BackupCopy(staged, _path);
+                ValidateDatabase(_path);
+                return safety;
+            }
+            catch (Exception ex)
+            {
+                if (!replacing)
+                    throw new IOException("Restore stopped before replacement because its safety backup could not be created. The active database was not replaced.", ex);
+                if (replacing)
+                {
+                    try { BackupCopy(safety, _path); ValidateDatabase(_path); }
+                    catch (Exception rollback) { throw new IOException($"Restore and recovery failed. Preserve the safety copy at {safety}.", new AggregateException(ex, rollback)); }
+                }
+                throw new IOException($"Restore failed; the previous database was recovered. The safety copy is at {safety}. {ex.Message}", ex);
+            }
+            finally
+            {
+                if (File.Exists(staged)) File.Delete(staged);
+            }
         }
     }
 
@@ -142,11 +233,21 @@ internal sealed class CheckInStorage
     private static void ValidateDatabase(string path)
     {
         using var db = OpenPath(path, OpenReadOnly);
-        using (var check = Prepare(db.Handle, "PRAGMA quick_check"))
+        ValidateIntegrity(db.Handle);
+        ValidateSchema(db.Handle, false);
+    }
+
+    private static void ValidateIntegrity(IntPtr db)
+    {
+        using (var check = Prepare(db, "PRAGMA quick_check"))
         {
             if (sqlite3_step(check.Handle) != Row || ReadText(check.Handle, 0) != "ok")
                 throw new InvalidDataException("The SQLite database failed its integrity check.");
         }
+    }
+
+    private static Dictionary<string, string[]> RequiredSchema(bool current)
+    {
         var required = new Dictionary<string, string[]>
         {
             ["checkins"] = ["id", "recorded_at", "battery_id", "charge_percent", "state", "health_percent", "cycle_count", "note"],
@@ -154,14 +255,24 @@ internal sealed class CheckInStorage
             ["stored_battery_inspections"] = ["id", "profile_id", "checked_at", "physically_inspected", "swelling", "leakage", "unusual_odor", "unexpected_warmth", "charge_measured", "voltage_measured", "charge_percent", "voltage"],
             ["lenovo_battery_snapshots"] = ["id", "capture_id", "captured_at", "battery_id", "barcode", "data_json"]
         };
+        if (current)
+        {
+            required["checkins"] = [.. required["checkins"], "evidence_id"];
+            required["stored_battery_inspections"] = [.. required["stored_battery_inspections"], "evidence_id"];
+            required["lenovo_battery_snapshots"] = [.. required["lenovo_battery_snapshots"], "snapshot_day", "identity_key"];
+            required["app_settings"] = ["key", "value"];
+            required["lenovo_battery_snapshot_revisions"] = ["id", "original_id", "capture_id", "captured_at", "battery_id", "barcode", "data_json", "archived_at"];
+        }
+        return required;
+    }
+
+    private static void ValidateSchema(IntPtr db, bool current)
+    {
+        var required = RequiredSchema(current);
         foreach (var (table, columns) in required)
         {
-            var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using var statement = Prepare(db.Handle, $"PRAGMA table_info({table})");
-            int step;
-            while ((step = sqlite3_step(statement.Handle)) == Row)
-                found.Add(ReadText(statement.Handle, 1));
-            if (step != Done || columns.Any(column => !found.Contains(column)))
+            var found = Columns(db, table);
+            if (columns.Any(column => !found.Contains(column)))
                 throw new InvalidDataException($"The backup has an incompatible {table} table.");
         }
     }
@@ -177,7 +288,7 @@ internal sealed class CheckInStorage
             if (step != Done) throw Error(db);
         }
         if (rows.Count == 0) return;
-        Execute(db, "BEGIN IMMEDIATE");
+        Execute(db, "SAVEPOINT legacy_snapshots");
         try
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -206,9 +317,9 @@ internal sealed class CheckInStorage
                     if (sqlite3_step(update.Handle) != Done) throw Error(db);
                 }
             }
-            Execute(db, "COMMIT");
+            Execute(db, "RELEASE legacy_snapshots");
         }
-        catch { Execute(db, "ROLLBACK"); throw; }
+        catch { Execute(db, "ROLLBACK TO legacy_snapshots"); Execute(db, "RELEASE legacy_snapshots"); throw; }
     }
 
     public string? GetSetting(string key)
@@ -511,7 +622,17 @@ internal sealed class CheckInStorage
         Execute(db, $"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_evidence_id ON {table}(evidence_id)");
     }
 
-    private Connection Open() => OpenPath(_path, OpenReadWriteCreate);
+    private Connection Open()
+    {
+        Monitor.Enter(_databaseGate);
+        try
+        {
+            var connection = OpenPath(_path, OpenReadWriteCreate);
+            connection.OnClosed = () => Monitor.Exit(_databaseGate);
+            return connection;
+        }
+        catch { Monitor.Exit(_databaseGate); throw; }
+    }
 
     private static Connection OpenPath(string path, int flags)
     {
@@ -593,7 +714,12 @@ internal sealed class CheckInStorage
     private sealed class Connection(IntPtr handle) : IDisposable
     {
         public IntPtr Handle { get; } = handle;
-        public void Dispose() => sqlite3_close(Handle);
+        public Action? OnClosed { get; set; }
+        public void Dispose()
+        {
+            try { sqlite3_close(Handle); }
+            finally { OnClosed?.Invoke(); }
+        }
     }
 
     private sealed class Statement(IntPtr handle) : IDisposable
