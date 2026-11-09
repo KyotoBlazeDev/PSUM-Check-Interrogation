@@ -160,6 +160,7 @@ public sealed partial class BusinessWorkspace : UserControl
     private void ResetObservations() { foreach (var box in new[] { Swelling, Heat, Leakage, Odor, Visual }) box.SelectedIndex = 0; }
     private void Render()
     {
+        RenderFleet();
         var batteryId = reading is { Issue: null } ? reading.BatteryId : events.LastOrDefault(e => e.Machine == Environment.MachineName && e.Asset == Asset.Text.Trim())?.BatteryId;
         var active = BusinessPolicy.Lifecycle(events, Environment.MachineName, Asset.Text.Trim(), batteryId);
         var check = active.LastOrDefault(e => e.Kind == "Inspection");
@@ -171,6 +172,31 @@ public sealed partial class BusinessWorkspace : UserControl
         var points = active.Where(e => e.Kind == "Reading" && e.Reading?.HealthPercent is not null).ToArray();
         Trend.Text = points.Length < 2 ? "Trend: capture readings over time to measure degradation." : $"Trend: {points.Length} readings since {points[0].At.ToLocalTime():g}; capacity change {points[^1].Reading!.HealthPercent - points[0].Reading!.HealthPercent:+0.0;-0.0;0.0} percentage points.\n" + string.Join("  →  ", points.TakeLast(8).Select(p => $"{p.At.ToLocalTime():d}: {p.Reading!.HealthPercent:0.0}%"));
         History.Text = string.Join("\n\n", events.Reverse().Select(e => $"{e.At.ToLocalTime():g} • {e.Kind} • {e.Asset} • {e.Operator}\nBattery {e.BatteryId} • {BusinessPolicy.Classify(e.Reading?.HealthPercent)} • {e.Reading?.HealthPercent}%\n{(e.Kind == "Inspection" ? $"Swelling {e.Swelling}; heat {e.Heat}; leakage {e.Leakage}; odor {e.Odor}; visual {e.Visual}\n" : "")}{e.Manufacturer} {e.Model} • Serial {e.Serial} • FRU {e.Fru}\n{e.Notes}"));
+    }
+    private void RenderFleet()
+    {
+        // XAML can raise filter events while InitializeComponent is still running.
+        if (FleetList is null || FleetSearch is null || FleetAttention is null || FleetSummary is null || FleetEmpty is null) return;
+        var fleet = BusinessPolicy.Fleet(events, DateTimeOffset.UtcNow);
+        FleetSummary.Text = $"{fleet.Count} assets • {fleet.Count(e => e.NeedsAttention)} need attention • {fleet.Count(e => e.Hazard)} physical hazards • {fleet.Count(e => e.InspectionStatus == "Overdue")} overdue • {fleet.Count(e => e.InspectionStatus == "Due soon")} due soon • {fleet.Count(e => e.InspectionStatus == "Inspection needed")} need inspection";
+        string query = FleetSearch.Text.Trim();
+        var visible = fleet.Where(e => (FleetAttention.IsChecked != true || e.NeedsAttention) &&
+            (e.Asset.Contains(query, StringComparison.OrdinalIgnoreCase) || e.Machine.Contains(query, StringComparison.OrdinalIgnoreCase))).ToArray();
+        FleetList.ItemsSource = visible;
+        FleetEmpty.Text = visible.Length > 0 ? "" : fleet.Count == 0 ? "No local assets recorded. Capture a reading or record an inspection to begin." : "No assets match these filters.";
+    }
+    private void FleetFilter_Changed(object sender, RoutedEventArgs e) => RenderFleet();
+    private void FleetRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        try { events = store.Read(); Render(); }
+        catch (Exception ex) { DiagnosticsLog.Error("Audit.Fleet.Load", ex); Notify("Could not refresh local fleet records: " + ex.Message, true); }
+    }
+    private void FleetList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (FleetList.SelectedItem is not FleetAsset asset) return;
+        if (asset.Machine != Environment.MachineName) { Notify("This asset belongs to another machine. Its saved observations are shown in Fleet Overview.", true); return; }
+        if (capturing) { Notify("Wait for the battery capture to finish.", true); return; }
+        Asset.Text = asset.Asset;
     }
     private async System.Threading.Tasks.Task Export(bool json)
     {

@@ -5,6 +5,17 @@
   <TextBlock Text="BUSINESS MODE • Battery inspection workspace" FontSize="16" TextWrapping="Wrap" />
   <local:SystemFamilySign />
   <InfoBar x:Name="Message" IsOpen="False" IsClosable="True" />
+  <TextBlock Text="Fleet Overview" FontSize="22" FontWeight="SemiBold" />
+  <TextBlock Text="Assets recorded in this Windows account's local Business audit history. Values are last recorded observations; no remote devices are contacted. Select a row to load its asset on this machine." TextWrapping="Wrap" />
+  <TextBlock x:Name="FleetSummary" TextWrapping="Wrap" />
+  <TextBox x:Name="FleetSearch" Header="Search asset or machine" TextChanged="FleetFilter_Changed" />
+  <CheckBox x:Name="FleetAttention" Content="Show assets needing attention" Checked="FleetFilter_Changed" Unchecked="FleetFilter_Changed" />
+  <Button Content="Refresh local fleet records" Click="FleetRefresh_Click" />
+  <ListView x:Name="FleetList" MaxHeight="360" SelectionChanged="FleetList_SelectionChanged" HorizontalContentAlignment="Stretch">
+   <ListView.ItemTemplate><DataTemplate><StackPanel Spacing="4" Padding="4"><TextBlock Text="{Binding Heading}" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="{Binding Details}" TextWrapping="Wrap" /></StackPanel></DataTemplate></ListView.ItemTemplate>
+  </ListView>
+  <TextBlock x:Name="FleetEmpty" TextWrapping="Wrap" />
+  <TextBlock Text="Current asset inspection" FontSize="22" FontWeight="SemiBold" />
   <TextBlock Text="Enter an asset tag, capture a reading, then complete the physical inspection below. Capturing here saves a Business audit reading; refreshing live telemetry only updates the current values." TextWrapping="Wrap" />
   <TextBox x:Name="Asset" Header="Asset tag" MaxLength="128" />
   <TextBlock Text="Changing the asset loads its saved battery label fields and clears unsaved physical observations and notes. A changed battery label is recorded as a physical observation without attaching the previous battery's telemetry." TextWrapping="Wrap" />

@@ -31,6 +31,22 @@ var reading = Parse("{\"Static\":[{\"InstanceName\":\"A\",\"DesignedCapacity\":5
 Check(reading.HealthPercent == 80 && reading.TemperatureC == 25.1 && reading.CycleCount is null, "Capacity ratio, Kelvin conversion, unavailable cycle handling");
 var item = new BusinessEvent(Guid.NewGuid(),DateTimeOffset.UtcNow,"tester","machine","=formula",reading.BatteryId,"Inspection",reading,"Present","Absent","Absent","Absent","Normal","Line one, \"quoted\"\nLine two",DateTimeOffset.UtcNow.AddDays(90),"maker","model","serial","fru");
 Check(BusinessPolicy.Action(item, 100).StartsWith("Stop use"), "Physical hazards override healthy capacity");
+var fleetTime = item.At.AddDays(1);
+var fleetReplacement = item with { Id = Guid.NewGuid(), At = fleetTime, Kind = "Replacement", NextDue = null, BatteryId = "replacement", Reading = reading with { BatteryId = "replacement" }, Serial = "replacement-serial" };
+var fleetRows = BusinessPolicy.Fleet(new[] { fleetReplacement, item }, fleetTime);
+Check(fleetRows.Count == 1 && !fleetRows[0].Hazard && fleetRows[0].InspectionStatus == "Inspection needed", "Fleet uses latest battery lifecycle without carrying replaced battery hazards or due dates");
+var crossBatteryAlerts = BusinessPolicy.Alerts(new[] { fleetReplacement, item with { NextDue = fleetTime.AddDays(-1) } }, item.Machine, fleetTime);
+Check(crossBatteryAlerts.Count == 1 && crossBatteryAlerts[0].Contains("none completed"),
+    "Replacing a battery with a different ID clears its old hazard and overdue alerts and prompts for a new inspection");
+var healthyInspection = item with { Swelling = "Absent", NextDue = fleetTime.AddDays(15) };
+Check(!BusinessPolicy.Fleet(new[] { healthyInspection }, fleetTime).Single().NeedsAttention, "Healthy scheduled asset needs no fleet attention");
+Check(BusinessPolicy.Fleet(new[] { healthyInspection with { NextDue = fleetTime } }, fleetTime).Single().InspectionStatus == "Overdue" &&
+    BusinessPolicy.Fleet(new[] { healthyInspection with { NextDue = fleetTime.AddDays(14) } }, fleetTime).Single().InspectionStatus == "Due soon", "Fleet inspection boundaries include exact due time and fourteen day horizon");
+var unknownFleet = BusinessPolicy.Fleet(new[] { healthyInspection with { Reading = BatteryDiagnostics.Unknown("Offline") with { BatteryId = item.BatteryId } } }, fleetTime).Single();
+Check(unknownFleet.Classification == "Unknown" && unknownFleet.NeedsAttention, "Fleet keeps unavailable telemetry unknown and needing attention");
+Check(BusinessPolicy.Fleet(new[] { item, item with { Machine = "other" }, item with { Asset = "" } }, fleetTime).Count == 2, "Fleet separates equal asset tags on different machines and omits unassigned legacy readings");
+Check(BusinessPolicy.Fleet(new[] { healthyInspection, item with { Asset = "hazard" } }, fleetTime).First().Hazard, "Fleet prioritizes physical hazards");
+Check(BusinessPolicy.Fleet(Array.Empty<BusinessEvent>(), fleetTime).Count == 0, "Empty fleet has no invented assets");
 string folder = Path.Combine(testRoot, "records");
 var store = new BusinessStore(folder);
 store.Append(item);

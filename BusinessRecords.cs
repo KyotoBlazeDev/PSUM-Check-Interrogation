@@ -14,6 +14,28 @@ internal sealed record BusinessEvent(Guid Id, DateTimeOffset At, string Operator
 
 internal static class BusinessPolicy
 {
+    private const string HazardAction = "Stop use and charging. Follow your organization's battery incident procedure; contact IT for replacement.";
+
+    public static IReadOnlyList<FleetAsset> Fleet(IEnumerable<BusinessEvent> records, DateTimeOffset now) =>
+        records.Where(e => !string.IsNullOrWhiteSpace(e.Asset)).GroupBy(e => (e.Machine, e.Asset))
+        .Select(group =>
+        {
+            var latest = group.OrderBy(e => e.At).ThenBy(e => e.Id).Last();
+            var active = Lifecycle(group, latest.Machine, latest.Asset, latest.BatteryId);
+            var inspection = active.LastOrDefault(e => e.Kind == "Inspection");
+            var sample = active.LastOrDefault()?.Reading;
+            var health = sample?.Issue is null ? sample?.HealthPercent : null;
+            bool hazard = inspection is not null && Hazard(inspection);
+            string status = inspection?.NextDue is not DateTimeOffset due ? "Inspection needed"
+                : due <= now ? "Overdue" : due <= now.AddDays(14) ? "Due soon" : "Scheduled";
+            string classification = Classify(health);
+            return new FleetAsset(latest.Machine, latest.Asset, latest.BatteryId, latest.At,
+                classification, health, hazard, status, inspection?.NextDue,
+                hazard || status != "Scheduled" || classification != "Healthy");
+        }).OrderByDescending(e => e.Hazard).ThenByDescending(e => e.NeedsAttention)
+        .ThenBy(e => e.NextDue ?? DateTimeOffset.MinValue).ThenBy(e => e.Machine, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(e => e.Asset, StringComparer.OrdinalIgnoreCase).ToArray();
+
     public static BusinessEvent? LatestAssetRecord(IEnumerable<BusinessEvent> records, string machine, string asset) =>
         records.Where(e => e.Machine == machine && e.Asset == asset.Trim()).OrderBy(e => e.At).ThenBy(e => e.Id).LastOrDefault();
 
@@ -51,21 +73,30 @@ internal static class BusinessPolicy
     public static IReadOnlyList<string> Alerts(IEnumerable<BusinessEvent> records, string machine, DateTimeOffset now)
     {
         var result = new List<string>();
-        foreach (var group in records.Where(e => e.Machine == machine && !string.IsNullOrWhiteSpace(e.Asset)).GroupBy(e => (e.Asset, e.BatteryId)))
+        foreach (var asset in Fleet(records.Where(e => e.Machine == machine), now))
         {
-            var active = Lifecycle(group, machine, group.Key.Asset, group.Key.BatteryId);
-            var inspection = active.LastOrDefault(e => e.Kind == "Inspection");
-            if (inspection is not null && Hazard(inspection)) result.Add($"{group.Key.Asset}: physical hazard reported. {Action(inspection, null)}");
-            if (inspection?.NextDue is not DateTimeOffset due) result.Add($"{group.Key.Asset}: physical inspection due; none completed for this lifecycle.");
-            else if (due <= now.AddDays(14)) result.Add($"{group.Key.Asset}: inspection {(due <= now ? "overdue" : "due soon")} ({due.ToLocalTime():d}).");
+            if (asset.Hazard)
+                result.Add($"{asset.Asset}: physical hazard reported. {HazardAction}");
+            if (asset.NextDue is not DateTimeOffset due)
+                result.Add($"{asset.Asset}: physical inspection due; none completed for this lifecycle.");
+            else if (asset.InspectionStatus is "Overdue" or "Due soon")
+                result.Add($"{asset.Asset}: inspection {asset.InspectionStatus.ToLowerInvariant()} ({due.ToLocalTime():d}).");
         }
         return result;
     }
     public static string Classify(double? health) => health is null || !double.IsFinite(health.Value) || health < 0 ? "Unknown" : health >= 80 ? "Healthy" : health >= 70 ? "Watch" : health >= 50 ? "Degraded" : "Critical";
     public static bool Hazard(BusinessEvent e) => new[] { e.Swelling, e.Heat, e.Leakage, e.Odor }.Contains("Present") || e.Visual == "Damaged";
     public static string Action(BusinessEvent? inspection, double? health) => inspection is not null && Hazard(inspection)
-        ? "Stop use and charging. Follow your organization's battery incident procedure; contact IT for replacement."
+        ? HazardAction
         : Classify(health) switch { "Critical" => "Prioritize replacement and protect work from unexpected shutdown.", "Degraded" => "Plan replacement; inspect condition and confirm required runtime.", "Watch" => "Review capacity trend and shorten the next inspection interval.", "Healthy" => "Continue routine inspections.", _ => "Obtain a valid reading and complete a physical inspection." };
+}
+
+internal sealed record FleetAsset(string Machine, string Asset, string BatteryId, DateTimeOffset LastRecorded,
+    string Classification, double? HealthPercent, bool Hazard, string InspectionStatus, DateTimeOffset? NextDue,
+    bool NeedsAttention)
+{
+    public string Heading => $"{Asset} • {Machine}";
+    public string Details => $"{(Hazard ? "PHYSICAL HAZARD • " : "")}{Classification} • {(HealthPercent is double health ? $"{health:0.0}%" : "Health unavailable")}\n{InspectionStatus}{(NextDue is DateTimeOffset due ? $" • {due.ToLocalTime():g}" : "")}\nLast recorded {LastRecorded.ToLocalTime():g} • Battery {BatteryId}";
 }
 
 internal sealed class BusinessStore
